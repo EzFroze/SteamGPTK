@@ -1,6 +1,6 @@
 # Publishing SteamGPTK
 
-The fork is `EzFroze/SteamGPTK`. The initial implementation branch is `codex/wine-gptk-ui`; its base is the tested standalone commit `5b8d18683b619b66390be8cbcffc1fbf47e45971`.
+The fork is `EzFroze/SteamGPTK` and its primary branch is `main`. The initial implementation was developed on `codex/wine-gptk-ui`, based on the tested standalone commit `5b8d18683b619b66390be8cbcffc1fbf47e45971`.
 
 ## Git remotes
 
@@ -11,13 +11,13 @@ origin    git@github.com:EzFroze/SteamGPTK.git
 upstream  <original project URL listed in README.md>
 ```
 
-Push the implementation branch without rewriting the fork's existing `main`:
+Push a feature branch, verify CI, then merge it into `main` without rewriting history:
 
 ```bash
 git push -u origin codex/wine-gptk-ui
 ```
 
-To show this implementation on the repository landing page, choose `codex/wine-gptk-ui` as the repository's default branch in GitHub Settings. The README source-build command selects the branch explicitly until then. The original upstream `main` is retained for reference; it is a different, CrossOver-oriented implementation.
+The repository landing page and ordinary clones use `main`. The earlier upstream history is retained by the integration merge. Release tags continue to identify their exact source commits.
 
 ## Check a release candidate
 

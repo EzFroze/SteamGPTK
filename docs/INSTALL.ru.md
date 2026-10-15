@@ -19,13 +19,13 @@ SteamGPTK запускает Windows-игры через обычный Steam д
 Приложение также можно собрать из исходников. Потребуются Command Line Tools (`xcode-select --install`) или Xcode со Swift 6.2+, а также CMake. Если Homebrew уже установлен, подойдёт `brew install cmake`.
 
 ```bash
-git clone --branch codex/wine-gptk-ui --single-branch https://github.com/EzFroze/SteamGPTK.git
+git clone https://github.com/EzFroze/SteamGPTK.git
 cd SteamGPTK
 ./scripts/build-free-ui.sh
 open out/SteamGPTK.app
 ```
 
-Для сборки используй путь к проекту без пробелов. Явно указанная ветка содержит нашу реализацию Wine/GPTK, даже если главной веткой форка пока остаётся исходный `main`.
+Основная ветка `main` содержит SteamGPTK. Для сборки используй путь к проекту без пробелов.
 
 Сборка подписана локальной подписью и не нотарифицирована Apple. Если macOS требует подтверждения, используй разрешение для этого конкретного приложения в **Системные настройки → Конфиденциальность и безопасность**. Глобально отключать Gatekeeper не нужно.
 

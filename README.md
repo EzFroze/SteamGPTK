@@ -63,13 +63,13 @@ Steam remains responsible for remote uploads and downloads, and each game must s
 Install Apple's Command Line Tools (`xcode-select --install`) or Xcode with Swift 6.2 or newer, and install CMake. If you already use Homebrew, `brew install cmake` is sufficient. A full Xcode installation is another supported toolchain; this project does not install Homebrew for you.
 
 ```bash
-git clone --branch codex/wine-gptk-ui --single-branch https://github.com/EzFroze/SteamGPTK.git
+git clone https://github.com/EzFroze/SteamGPTK.git
 cd SteamGPTK
 ./scripts/build-free-ui.sh
 open out/SteamGPTK.app
 ```
 
-The explicit branch selects this fork's Wine/GPTK implementation even before it is made the default branch on GitHub. Use a checkout path without spaces when building the native module.
+The default `main` branch contains SteamGPTK. Use a checkout path without spaces when building the native module.
 
 The build pins Dobby and the bridge payload from SteamGPTK 0.1.2, verifies the archive checksum, compiles the module/UI and produces `out/SteamGPTK.app`. It packages license notices and rejects accidentally staged GPTK renderer binaries. No GPTK image, Wine runtime or patched `ntdll.dll` is packaged with the app. The Wine detour is applied locally to the verified downloaded engine.
 
