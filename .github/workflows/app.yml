@@ -51,7 +51,25 @@ jobs:
           make -s spawn-env
 
       - name: Run Swift tests without a user GPTK image
-        run: ./scripts/test-free-ui.sh
+        run: |
+          if ./scripts/test-free-ui.sh 2>&1 | tee "$RUNNER_TEMP/steamgptk-tests.log"; then
+            exit 0
+          fi
+          python3 - "$RUNNER_TEMP/steamgptk-tests.log" <<'PY'
+          from pathlib import Path
+          import sys
+          lines = Path(sys.argv[1]).read_text(errors='replace').splitlines()
+          reports = 0
+          for index, line in enumerate(lines):
+              if 'recorded an issue' in line or 'error:' in line:
+                  message = '\n'.join(lines[index:index + 8])[:3000]
+                  message = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print('::error title=Swift regression::' + message)
+                  reports += 1
+                  if reports == 10:
+                      break
+          PY
+          exit 1
 
       - name: Check relocated app resources without opening UI
         run: ./scripts/check-packaged-ui.sh out/SteamGPTK.app
