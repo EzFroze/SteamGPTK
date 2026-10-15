@@ -69,7 +69,7 @@ enum FreeRunnerInstaller {
         let patch = try suppliedPatch ?? FreeNtdllPatch.bundled()
         let originalBytes = try Data(contentsOf: ntdll)
         let patchedBytes = try patch.apply(to: originalBytes)
-        guard let scriptURL = Bundle.module.url(forResource: "compat_run", withExtension: "sh") else {
+        guard let scriptURL = AppResources.bundle.url(forResource: "compat_run", withExtension: "sh") else {
             throw StepFailure(step: step, detail: "The Wine launch script is missing from this application.")
         }
         let script = try Data(contentsOf: scriptURL)

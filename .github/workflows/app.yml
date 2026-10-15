@@ -51,6 +51,9 @@ jobs:
       - name: Run Swift tests without a user GPTK image
         run: ./scripts/test-free-ui.sh
 
+      - name: Check relocated app resources without opening UI
+        run: ./scripts/check-packaged-ui.sh out/SteamGPTK.app
+
       - name: Package and verify
         run: |
           codesign --verify --deep --strict out/SteamGPTK.app
@@ -59,6 +62,11 @@ jobs:
           cd out/artifact
           shasum -a 256 SteamGPTK.zip > SteamGPTK.zip.sha256
           unzip -tq SteamGPTK.zip
+
+      - name: Check the app extracted from the shipping archive
+        run: |
+          ditto -x -k out/artifact/SteamGPTK.zip "$RUNNER_TEMP/steamgptk-shipping"
+          ./scripts/check-packaged-ui.sh "$RUNNER_TEMP/steamgptk-shipping/SteamGPTK.app"
 
       - name: Upload app and checksum
         uses: actions/upload-artifact@v4

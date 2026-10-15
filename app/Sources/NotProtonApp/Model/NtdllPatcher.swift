@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Patches CrossOver's ntdll.dll so that lsteamclient is loaded.
 
 import Foundation
@@ -337,7 +338,7 @@ enum NtdllPatcher {
     // Resources
 
     static func payload(for patch: NtdllPatch) throws -> Data {
-        guard let url = Bundle.module.url(forResource: patch.payloadResource, withExtension: "bin") else {
+        guard let url = AppResources.bundle.url(forResource: patch.payloadResource, withExtension: "bin") else {
             throw StepFailure(
                 step: step,
                 detail: "\(patch.payloadResource).bin is missing from the app's resources."

@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Deploys core NotProton components into the copy of CrossOver that NotProton deploys to the Steam location
 
 import Foundation
@@ -14,7 +15,7 @@ enum InstallPayload {
         let signatures: [URL]
     }
 
-    static func root(in bundle: Bundle = .module) throws -> URL {
+    static func root(in bundle: Bundle = AppResources.bundle) throws -> URL {
         guard let url = bundle.url(forResource: "payload", withExtension: nil) else {
             throw StepFailure(
                 step: step,
@@ -24,7 +25,7 @@ enum InstallPayload {
         return url
     }
 
-    static func locate(in bundle: Bundle = .module) throws -> Located {
+    static func locate(in bundle: Bundle = AppResources.bundle) throws -> Located {
         try locate(root: try root(in: bundle))
     }
 

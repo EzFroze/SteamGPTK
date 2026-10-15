@@ -2,8 +2,26 @@
 // Self-explanatory
 
 import SwiftUI
+import Darwin
 
 @main
+enum SteamGPTKEntryPoint {
+    @MainActor
+    static func main() {
+        if CommandLine.arguments.contains("--check-resources") {
+            do {
+                try PackagedResourceCheck.run()
+                print("Packaged resources OK")
+            } catch {
+                FileHandle.standardError.write(Data(("Resource check failed: \(error.localizedDescription)\n").utf8))
+                exit(1)
+            }
+            return
+        }
+        NotProtonApp.main()
+    }
+}
+
 struct NotProtonApp: App {
 
     @State private var status = SystemStatus()

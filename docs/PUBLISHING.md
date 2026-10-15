@@ -24,6 +24,7 @@ To show this implementation on the repository landing page, choose `codex/wine-g
 ```bash
 ./scripts/build-free-ui.sh
 ./scripts/test-free-ui.sh
+./scripts/check-packaged-ui.sh out/SteamGPTK.app
 make profilecheck compatcheck webpatch-fixtures compatsvc-check
 ```
 
@@ -42,6 +43,8 @@ The smoke test uses a disposable runtime. A GPTK DMG must never be added to Git,
 Enable Actions for the fork if GitHub prompts. The app workflow builds `SteamGPTK.app` through `scripts/build-free-ui.sh`, runs checks and uploads `SteamGPTK.zip` plus its SHA-256 checksum as an artifact. The full GPTK installation smoke test is intentionally local because it requires a user-owned Apple download.
 
 The workflows use GitHub-hosted Apple Silicon runners. They do not require the original author's signing key, Apple developer credentials, a CrossOver license, or a Sparkle update secret.
+
+The app supports `--check-resources` for a headless packaging check. The wrapper above relocates a copy and verifies that manifests, patch recipes and payloads are loaded from inside the app, rather than from a developer/runner build cache. CI repeats this check on the app extracted from the shipping ZIP before releasing it. It does not launch the UI, Wine or Steam.
 
 ## Publish a release from the terminal
 

@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Validation for downloaded Valve binaries
 
 import Foundation
@@ -45,7 +46,7 @@ struct ValvePackageManifest: Sendable {
     private static let step = "Read the Valve file list"
 
     static func bundled() throws -> ValvePackageManifest {
-        guard let url = Bundle.module.url(
+        guard let url = AppResources.bundle.url(
             forResource: resourceName, withExtension: resourceExtension
         ) else {
             throw StepFailure(

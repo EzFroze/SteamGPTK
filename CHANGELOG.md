@@ -1,5 +1,11 @@
 # SteamGPTK changes
 
+## 0.1.2 — 2026-10-15
+
+- Fix startup crashes in downloaded apps: resources are resolved inside the app instead of the GitHub runner's SwiftPM build directory.
+- Check resource loading for both native SwiftPM and Swift Build bundle layouts.
+- Gate releases on a headless resource check after relocation and ZIP extraction. This does not open windows or inspect/change an installed Steam runtime.
+
 ## 0.1.1 — 2026-10-15
 
 - Fix release verification for annotated Git tags checked out by GitHub Actions.

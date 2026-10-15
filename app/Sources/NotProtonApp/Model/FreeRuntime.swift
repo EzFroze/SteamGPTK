@@ -20,7 +20,7 @@ enum FreeRuntime {
     }
 
     static func cloudProfilesReady(tool: URL = SupportPaths.Steam.compatTool) -> Bool {
-        guard let bundled = Bundle.module.url(forResource: "compat_run", withExtension: "sh"),
+        guard let bundled = AppResources.bundle.url(forResource: "compat_run", withExtension: "sh"),
               let expected = Digest.sha256IfPresent(bundled) else { return false }
         return Digest.sha256IfPresent(tool.appending(path: "run")) == expected
     }

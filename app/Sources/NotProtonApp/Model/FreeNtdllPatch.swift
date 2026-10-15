@@ -8,7 +8,7 @@ struct FreeNtdllPatch: Decodable, Sendable {
     let ranges: [Range]
 
     static func bundled() throws -> FreeNtdllPatch {
-        guard let url = Bundle.module.url(forResource: "ntdll-sikarugir11", withExtension: "json") else {
+        guard let url = AppResources.bundle.url(forResource: "ntdll-sikarugir11", withExtension: "json") else {
             throw StepFailure(step: "Patch Wine", detail: "The Wine 11 detour specification is missing.")
         }
         return try JSONDecoder().decode(Self.self, from: Data(contentsOf: url))

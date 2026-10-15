@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // NotProton payload manifest stuff
 
 import Foundation
@@ -27,7 +28,7 @@ struct PayloadManifest: Sendable {
     static let resourceExtension = "manifest"
 
     static func bundled() throws -> PayloadManifest {
-        guard let url = Bundle.module.url(
+        guard let url = AppResources.bundle.url(
             forResource: resourceName, withExtension: resourceExtension
         ) else {
             throw StepFailure(
