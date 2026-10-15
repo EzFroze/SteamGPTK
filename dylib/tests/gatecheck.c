@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // The gate table is static, so the unit under test is included rather than
 // linked.
 #include "../feats/webpatch.c"
@@ -50,6 +51,23 @@ static void check_gate(const char *nm, size_t i, const np_gate_t *a,
 }
 
 static void selfcheck(void) {
+    const struct { const char *path; int want; } paths[] = {
+        { "/tmp/Steam/steamui/sp.js", 1 },
+        { "/tmp/Steam/steamui/4572.js", 1 },
+        { "/tmp/Steam/steamui/chunk~old.js", 1 },
+        { "steamui/sp.js", 1 },
+        { "/tmp/Steam/steamui/localization/shared_russian-json.js", 0 },
+        { "/tmp/Steam/steamui/libraries/react.js", 0 },
+        { "/tmp/mysteamui/chunk~old.js", 0 },
+        { "/tmp/Steam/steamui/sp.css", 0 },
+        { NULL, 0 },
+    };
+    for (size_t i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
+        int got = np_webpatch_should_patch(paths[i].path);
+        if (got != paths[i].want)
+            wrong("UI asset %s: eligible %d, expected %d",
+                  paths[i].path ? paths[i].path : "<null>", got, paths[i].want);
+    }
     size_t total = 0;
     for (size_t sh = 0; sh < NP_SHAPE_COUNT; sh++) {
         const np_ui_shape_t *S = &g_shapes[sh];

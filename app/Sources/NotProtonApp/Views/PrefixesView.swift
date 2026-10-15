@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Prefix management UI inside NotProton, also see PrefixesModel
 
 import SwiftUI
@@ -51,7 +52,9 @@ struct PrefixesView: View {
         .toolbar {
             if #available(macOS 26.1, *) {
                 ToolbarItemGroup(placement: .primaryAction) { strip }
+                    #if !NOTPROTON_SDK26
                     .visibilityPriority(.high)
+                    #endif
             } else {
                 ToolbarItemGroup(placement: .primaryAction) { strip }
             }

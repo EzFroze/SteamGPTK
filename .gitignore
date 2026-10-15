@@ -23,3 +23,14 @@ DerivedData/
 
 app/Sources/NotProtonApp/Resources/payload/
 __pycache__/
+
+# User-supplied GPTK images, downloaded runtimes and local credentials
+*.dmg
+*.pkg
+*.zip
+*.tar.xz
+*.log
+*.p12
+*.key
+.env
+.env.*

@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 import Foundation
 import Testing
 
@@ -16,6 +17,7 @@ struct RunnerPatcherTests {
         // Which build is installed decides the hashes the tree is held to. Taking the first in
         // the allow list calls a healthy tree of the other flavor broken, skipping the rest.
         guard let id = RunnerStore.buildIdentifier(inPath: live.path(percentEncoded: false)),
+              id != FreeRuntime.id,
               let build = SupportedRunners.build(id: id),
               RunnerPatcher.verify(build: build, root: live).isEmpty
         else { return nil }

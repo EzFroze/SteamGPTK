@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // 'Status' view, see SystemStatus for actual logic
 
 import SwiftUI
@@ -117,563 +118,132 @@ struct StatusRow: View {
 
 struct StatusView: View {
     @Environment(SystemStatus.self) private var status
+    @Environment(PrefixesModel.self) private var prefixes
 
-    private static let updateBlockPrompt =
-        "Steam client updates may break NotProton. If you don't want to wait for "
-            + "NotProton to be updated to be compatible with future Steam versions at the "
-            + "cost of not getting updates to the Steam client, you can stop the Steam "
-            + "client from updating itself."
+    private var canInstall: Bool { status.isIdle && !prefixes.isBusy && status.snapshot?.steamRunning == false }
 
     var body: some View {
         Group {
-            if let snapshot = status.snapshot {
-                statusForm(snapshot)
-            } else {
-                ProgressView("Checking")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            if let snapshot = status.snapshot { form(snapshot) }
+            else { ProgressView("Checking Wine / GPTK").frame(maxWidth: .infinity, maxHeight: .infinity) }
         }
-        .navigationTitle("Status")
+        .navigationTitle("Wine / GPTK")
         .toolbar {
-            if #available(macOS 26.1, *) {
-                ToolbarItem(placement: .primaryAction) { refreshButton }
-                    .visibilityPriority(.high)
-            } else {
-                ToolbarItem(placement: .primaryAction) { refreshButton }
+            ToolbarItem(placement: .primaryAction) {
+                Button("Refresh", systemImage: "arrow.clockwise") { Task { await status.refresh() } }
+                    .disabled(!status.isIdle)
             }
-        }
-        .confirmationDialog(
-            "Block Steam client updates?",
-            isPresented: asking(.blockUpdates),
-            titleVisibility: .visible
-        ) {
-            Button("Block Updates", role: .destructive) {
-                Task { await status.setUpdateBlock(true) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(Self.updateBlockPrompt)
-        }
-        .confirmationDialog(
-            "Replace Steam with Valve's bundle?",
-            isPresented: asking(.replaceSteam),
-            titleVisibility: .visible
-        ) {
-            Button("Replace Steam", role: .destructive) {
-                Task { await status.repairSteam() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(
-                "This will restore Steam itself to its original state but does not remove "
-                    + "the support components used by NotProton."
-            )
-        }
-        .confirmationDialog(
-            "Are you sure?",
-            isPresented: asking(.removeBuild),
-            titleVisibility: .visible
-        ) {
-            Button("Remove", role: .destructive) {
-                Task { await status.removePendingBuild() }
-            }
-            Button("Cancel", role: .cancel) { status.cancelBuildRemoval() }
-        } message: {
-            if let build = status.pendingRemoval {
-                Text(
-                    "Are you sure you want to remove "
-                        + "\(SupportedRunners.displayVersion(forID: build))?"
-                )
-            }
-        }
-        .confirmationDialog(
-            "Remove everything NotProton has created?",
-            isPresented: asking(.removeEverything),
-            titleVisibility: .visible
-        ) {
-            Button("Remove Everything", role: .destructive) {
-                Task { await status.removeEverything() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(
-                "Steam is restored to its unmodified state and NotProton is removed, including "
-                    + "the compatibility tool that lives inside the Steam folder. Windows games "
-                    + "and Steam Play prefixes are not removed."
-            )
-        }
-        .confirmationDialog(
-            CrossOverLicense.notActivatedTitle,
-            isPresented: asking(.installUnlicensed),
-            titleVisibility: .visible
-        ) {
-            Button("Continue Anyway") {
-                Task { await status.installIntoSteam() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(
-                CrossOverLicense.notActivatedAdvice
-                    + " NotProton can be deployed, but the CrossOver compatibility tool "
-                    + "cannot be installed without a valid license."
-            )
         }
         .task { if status.snapshot == nil { await status.refresh() } }
-        .confirmationDialog(
-            CrossOverLicense.notActivatedTitle,
-            isPresented: asking(.toolUnlicensed),
-            titleVisibility: .visible
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(CrossOverLicense.notActivatedAdvice)
-        }
+        .confirmationDialog("Block Steam client updates?", isPresented: asking(.blockUpdates), titleVisibility: .visible) {
+            Button("Block Updates", role: .destructive) { Task { await status.setUpdateBlock(true) } }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Steam updates can change the functions NotProton integrates with. You can enable updates again here.") }
+        .confirmationDialog("Restore the original Steam application?", isPresented: asking(.replaceSteam), titleVisibility: .visible) {
+            Button("Restore Steam", role: .destructive) { Task { await status.repairSteam() } }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("This removes the NotProton integration from Steam. Game installations and saves are kept.") }
+        .confirmationDialog("Remove NotProton and its runtime?", isPresented: asking(.removeEverything), titleVisibility: .visible) {
+            Button("Remove", role: .destructive) { Task { await status.removeEverything() } }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Wine, imported GPTK, support components and NotProton backups are removed. Steam game prefixes and their saves are kept.") }
     }
 
-    private func asking(_ confirmation: SystemStatus.Confirmation) -> Binding<Bool> {
-        Binding(
-            get: { status.pendingConfirmation == confirmation },
-            set: { shown in
-                if !shown, status.pendingConfirmation == confirmation {
-                    status.pendingConfirmation = nil
-                }
-            }
-        )
+    private func asking(_ value: SystemStatus.Confirmation) -> Binding<Bool> {
+        Binding(get: { status.pendingConfirmation == value }, set: { if !$0 { status.pendingConfirmation = nil } })
     }
 
-    private func statusForm(_ snapshot: StatusSnapshot) -> some View {
+    private func form(_ snapshot: StatusSnapshot) -> some View {
         Form {
             if let failure = status.failure {
-                StatusRow(
-                    title: "Failed",
-                    value: failure,
-                    tone: .bad,
-                    action: status.failureRemedy?.settingsPane.map { pane in
-                        StatusAction(label: Remedy.settingsButton) {
-                            Remedy.openSettings(pane)
-                        }
-                    }
-                )
+                StatusRow(title: "Could not finish", value: failure, tone: .bad)
             } else if let outcome = status.outcome {
                 StatusRow(title: "Done", value: outcome, tone: .ok)
             }
-
             if let activity = status.activity {
-                HStack(spacing: 10) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(activity)
-                        .foregroundStyle(.secondary)
-                }
+                HStack { ProgressView().controlSize(.small); Text(activity).foregroundStyle(.secondary) }
             }
-
             Section("Steam") {
-                steamRow(snapshot.steam, payload: snapshot.payload)
+                steamRow(snapshot)
                 if snapshot.steamRunning {
-                    StatusRow(
-                        title: "Steam is running",
-                        value: "Close Steam before continuing.",
-                        tone: .info
-                    )
+                    StatusRow(title: "Steam is running", value: "Close Steam before installing or importing GPTK.", tone: .info)
                 }
-                updateBlockRow(snapshot.updateBlocked)
+                Toggle(isOn: Binding(get: { snapshot.updateBlocked }, set: { blocked in
+                    if blocked { status.pendingConfirmation = .blockUpdates }
+                    else { Task { await status.setUpdateBlock(false) } }
+                })) {
+                    VStack(alignment: .leading) {
+                        Text("Block Steam client updates").font(.headline)
+                        Text("Steam updates may require an updated NotProton build.").foregroundStyle(.secondary)
+                    }.padding(.leading, StatusMetrics.textInset)
+                }.disabled(!status.isIdle)
             }
-
             Section {
-                crossOverRows(snapshot)
-                runnerRow(snapshot.runner, payload: snapshot.payload)
-                if snapshot.installedRunners.count > 1 || !snapshot.orphanedRunners.isEmpty
-                    || !snapshot.damagedRunners.isEmpty || !status.availableBuilds.isEmpty {
-                    buildRows(snapshot)
-                }
-            } header: {
-                Text("Compatibility Tool")
-            } footer: {
-                if status.usableCrossOvers.count > 1 {
-                    HStack {
-                        Spacer()
-                        crossOverLink
-                    }
-                }
+                wineRow(snapshot.runner)
+                StatusRow(title: "Rosetta 2", value: snapshot.rosettaAvailable ? "Ready." : "Install Rosetta 2 to run Windows games.",
+                          tone: snapshot.rosettaAvailable ? .ok : .warning)
+                StatusRow(title: "Apple GPTK / D3DMetal",
+                          value: snapshot.gptkVersion.map { "Version \($0), imported locally." } ?? "Choose a GPTK 4 DMG downloaded from Apple.",
+                          tone: snapshot.gptkVersion == nil ? .neutral : .ok,
+                          detail: status.selectedGPTKDMG?.lastPathComponent,
+                          action: StatusAction(label: snapshot.gptkVersion == nil ? "Choose DMG…" : "Import Another…",
+                                               isEnabled: canInstall) { Task { await status.importGPTK() } })
+                Link("Download Game Porting Toolkit from Apple", destination: GPTKImport.downloadURL)
+                    .padding(.leading, StatusMetrics.textInset)
+            } header: { Text("Windows Games") }
+              footer: { Text("Wine 11 runs Windows programs through Rosetta. GPTK translates DirectX to Metal. Apple files are supplied by you and are not included in NotProton.") }
+            Section("SteamGPTK Components") {
+                StatusRow(title: "Steam bridge", value: snapshot.payload.isComplete ? "Ready." : "Installation or repair required.",
+                          tone: snapshot.payload.isComplete ? .ok : .warning,
+                          detail: componentDetail(snapshot.payload))
+                StatusRow(title: "Steam Cloud paths", value: snapshot.cloudProfilesReady ? "Unified Windows profile support installed." : "Install the updated launch script.",
+                          tone: snapshot.cloudProfilesReady ? .ok : .warning,
+                          detail: "Steam handles uploads and downloads. This checks the launch script, not cloud sync status.")
             }
-
-            componentsSection(snapshot.payload)
-
-            dangerSection
+            Section("Maintenance") {
+                StatusRow(title: "Wine / GPTK integration", value: "Install or repair the Steam bridge and runtime. Existing game prefixes and saves are kept.",
+                          action: StatusAction(label: "Install / Repair", isProminent: true, isEnabled: canInstall) {
+                              Task { await status.requestInstall() }
+                          })
+                StatusRow(title: "Original Steam", value: "Restore Steam without the NotProton integration.",
+                          action: StatusAction(label: "Restore…", role: .destructive, isEnabled: canInstall) { status.pendingConfirmation = .replaceSteam })
+                StatusRow(title: "Remove SteamGPTK", value: "Remove the runtime and imported GPTK from this account.",
+                          action: StatusAction(label: "Remove…", role: .destructive, isEnabled: canInstall) { status.pendingConfirmation = .removeEverything })
+            }
         }
         .formStyle(.grouped)
-        .frame(maxWidth: 680)
+        .frame(maxWidth: 720)
         .frame(maxWidth: .infinity)
     }
 
-    private var dangerSection: some View {
-        Section {
-            StatusRow(
-                title: "Repair Steam",
-                value: "Restore Steam to its original state.",
-                action: StatusAction(
-                    label: "Repair",
-                    role: .destructive,
-                    isEnabled: status.isIdle
-                ) { status.pendingConfirmation = .replaceSteam }
-            )
-            StatusRow(
-                title: "Remove Everything",
-                value: "Remove NotProton and restore Steam to its original state.",
-                action: StatusAction(
-                    label: "Remove",
-                    role: .destructive,
-                    isEnabled: status.isIdle
-                ) { status.pendingConfirmation = .removeEverything }
-            )
-        }
-    }
-
-    private var refreshButton: some View {
-        Button("Refresh", systemImage: "arrow.clockwise") {
-            Task { await status.refresh() }
-        }
-        .disabled(!status.isIdle)
-    }
-
-    private func installAction(prominent: Bool) -> StatusAction {
-        StatusAction(
-            label: "Install",
-            isProminent: prominent,
-            help: "Install NotProton into Steam.",
-            isEnabled: status.isIdle
-        ) {
-            Task { await status.requestInstall() }
-        }
-    }
-
-    private func steamRow(_ deployment: SteamDeployment, payload: PayloadState) -> some View {
-        switch deployment {
-        case .steamMissing:
-            StatusRow(title: "NotProton", value: "Steam not found.", tone: .bad)
-        case .notInstalled:
-            StatusRow(
-                title: "NotProton",
-                value: "Not installed.",
-                tone: .neutral,
-                action: installAction(prominent: true)
-            )
+    private func steamRow(_ snapshot: StatusSnapshot) -> StatusRow {
+        let action = StatusAction(label: "Install / Repair", isEnabled: canInstall) { Task { await status.requestInstall() } }
+        switch snapshot.steam {
+        case .steamMissing: return StatusRow(title: "SteamGPTK", value: "Install Steam for macOS first.", tone: .warning)
+        case .notInstalled: return StatusRow(title: "SteamGPTK", value: "Not installed into Steam.", tone: .neutral, action: action)
         case .installed(let version):
-            if payload.isComplete {
-                StatusRow(
-                    title: "NotProton",
-                    value: "Installed" + (version.map { " (\($0))" } ?? ""),
-                    tone: .ok
-                )
-            } else {
-                StatusRow(
-                    title: "NotProton",
-                    value: "Installed, but not for this account.",
-                    tone: .warning,
-                    detail: "Steam is set up for NotProton, but this account is missing its "
-                        + "components. Install to add them.",
-                    action: installAction(prominent: true)
-                )
-            }
-        case .outdated(_, let bundled):
-            StatusRow(
-                title: "NotProton",
-                value: "Update available (\(bundled)).",
-                tone: .warning,
-                action: installAction(prominent: true)
-            )
-        case .foreign:
-            StatusRow(
-                title: "NotProton",
-                value: "Another dylib is present.",
-                tone: .warning,
-                detail: "Repair your Steam install before installing NotProton."
-            )
+            return StatusRow(title: "SteamGPTK", value: "Installed" + (version.map { " (\($0))" } ?? "") + ".",
+                             tone: snapshot.payload.isComplete ? .ok : .warning)
+        case .outdated: return StatusRow(title: "SteamGPTK", value: "Installed version differs from this application.", tone: .warning, action: action)
+        case .foreign: return StatusRow(title: "SteamGPTK", value: "Steam uses another injected library.", tone: .warning)
         }
     }
 
-    private func updateBlockRow(_ blocked: Bool) -> some View {
-        Toggle(isOn: blockUpdates) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Block Steam client updates")
-                    .font(.headline)
-                Text(
-                    blocked
-                        ? "The Steam client will not update itself."
-                        : "A Steam client update may break NotProton."
-                )
-                .foregroundStyle(.secondary)
-            }
-            .padding(.leading, StatusMetrics.textInset)
-        }
-        .disabled(!status.isIdle)
-        .help("Steam client updates may break NotProton.")
-    }
-
-    private var blockUpdates: Binding<Bool> {
-        Binding(
-            get: { status.snapshot?.updateBlocked ?? false },
-            set: { wanted in
-                if wanted {
-                    status.pendingConfirmation = .blockUpdates
-                } else {
-                    Task { await status.setUpdateBlock(false) }
-                }
-            }
-        )
-    }
-
-    @ViewBuilder
-    private func crossOverRows(_ snapshot: StatusSnapshot) -> some View {
-        let installs = snapshot.crossOver.filter(\.isUsable)
-        if !installs.isEmpty {
-            ForEach(installs) { install in
-                if case .supported(let build) = install.support {
-                    StatusRow(
-                        title: install.name,
-                        value: "Build \(build.displayVersion)",
-                        tone: snapshot.crossOverLicense[install.id]?.licensed == true ? .ok : .warning,
-                        detail: install.bundle.path(percentEncoded: false),
-                        action: installs.count > 1
-                            ? setUpAction(for: install, build: build, snapshot: snapshot)
-                            : crossOverAction()
-                    )
-                }
-            }
-        } else {
-            StatusRow(
-                title: "CrossOver",
-                value: "Not found. Supported: \(SupportedRunners.versionList).",
-                tone: .bad,
-                action: crossOverAction()
-            )
-        }
-    }
-
-    private func crossOverAction(chooseLabel: String = "Choose\u{2026}") -> StatusAction {
-        if status.chosenCrossOver != nil {
-            return StatusAction(
-                label: "Use Search",
-                help: "Use the default CrossOver.",
-                isEnabled: status.isIdle
-            ) { Task { await status.clearCrossOverChoice() } }
-        }
-        return StatusAction(
-            label: chooseLabel,
-            help: "Pick a CrossOver install.",
-            isEnabled: status.isIdle
-        ) { Task { await status.chooseCrossOver() } }
-    }
-
-    @ViewBuilder
-    private var crossOverLink: some View {
-        let action = crossOverAction(chooseLabel: "Choose Another Copy\u{2026}")
-        Button(action.label, action: action.perform)
-            .buttonStyle(.link)
-            .disabled(!action.isEnabled)
-            .help(action.help ?? "")
-    }
-
-    private func setUpAction(
-        for install: CrossOverInstall, build: RunnerBuild, snapshot: StatusSnapshot
-    ) -> StatusAction? {
-        guard !snapshot.installedRunners.contains(build) else { return nil }
-        return StatusAction(
-            label: "Set Up",
-            isProminent: snapshot.runner == .none,
-            help: "Set up the compatibility tool from \(install.name).",
-            isEnabled: status.isIdle
-        ) {
-            Task { await status.requestCompatibilityTool(from: install) }
-        }
-    }
-
-    @ViewBuilder
-    private func buildRows(_ snapshot: StatusSnapshot) -> some View {
-        let active = snapshot.runner.buildIdentifier
-        ForEach(SupportedRunners.all) { build in
-            if snapshot.installedRunners.contains(build) {
-                let isActive = build.id == active
-                StatusRow(
-                    title: build.displayVersion,
-                    value: isActive ? "Active build." : buildSize(build.id),
-                    tone: isActive ? .ok : .neutral,
-                    secondaryAction: isActive ? nil : removeAction(build.id),
-                    action: isActive ? nil : useAction(build)
-                )
-            } else if snapshot.damagedRunners.contains(build.id) {
-                StatusRow(
-                    title: build.displayVersion,
-                    value: "Damaged Copy",
-                    tone: .warning,
-                    detail: buildSize(build.id),
-                    secondaryAction: removeAction(build.id),
-                    action: status.availableBuilds.first(where: { $0.id == build.id })
-                        .map(copyAction)
-                )
-            } else if let available = status.availableBuilds.first(where: { $0.id == build.id }) {
-                StatusRow(
-                    title: build.displayVersion,
-                    tone: .neutral,
-                    action: copyAction(available)
-                )
-            }
-        }
-        ForEach(snapshot.orphanedRunners, id: \.self) { build in
-            StatusRow(
-                title: SupportedRunners.displayVersion(forID: build),
-                value: "No longer supported.",
-                tone: .warning,
-                detail: buildSize(build),
-                secondaryAction: removeAction(build)
-            )
-        }
-    }
-
-    private func buildSize(_ build: String) -> String? {
-        status.runnerSizes[build].map {
-            ByteCountFormatter.string(fromByteCount: $0, countStyle: .file)
-        }
-    }
-
-    private func copyAction(_ available: SystemStatus.AvailableBuild) -> StatusAction {
-        StatusAction(
-            label: "Copy",
-            isProminent: true,
-            help: "Copy this CrossOver build and use it.",
-            isEnabled: status.isIdle
-        ) {
-            Task { await status.requestCompatibilityTool(from: available.install) }
-        }
-    }
-
-    private func useAction(_ build: RunnerBuild) -> StatusAction {
-        StatusAction(
-            label: "Use",
-            help: "Launch games with this CrossOver build.",
-            isEnabled: status.isIdle
-        ) {
-            Task { await status.switchRunner(to: build) }
-        }
-    }
-
-    private func removeAction(_ build: String) -> StatusAction {
-        StatusAction(
-            label: "Remove",
-            role: .destructive,
-            help: "Delete this build from disk.",
-            isEnabled: status.isIdle
-        ) {
-            status.requestBuildRemoval(build)
-        }
-    }
-
-    private func runnerAction(
-        label: String = "Set Up", replacingExisting: Bool = false
-    ) -> StatusAction {
-        StatusAction(
-            label: label,
-            isProminent: true,
-            help: "Set up the compatibility tool from CrossOver.",
-            isEnabled: status.isIdle && status.setupSource != nil
-        ) {
-            Task { await status.requestCompatibilityTool(replacingExisting: replacingExisting) }
-        }
-    }
-
-    private func runnerRow(_ state: RunnerState, payload: PayloadState) -> some View {
-        let patchedMissing = !payload.missing(origin: .patched).isEmpty
-
+    private func wineRow(_ state: RunnerState) -> StatusRow {
         switch state {
-        case .none:
-            return StatusRow(
-                title: "Compatibility Tool",
-                value: "Not set up.",
-                tone: .neutral,
-                action: status.crossOverRowsOfferSetUp ? nil : runnerAction()
-            )
-        case .cloned(let build, let supported):
-            let satisfied = supported && !patchedMissing
-            let deployed = status.setupSourceIsDeployed
-            return StatusRow(
-                title: "Compatibility Tool",
-                value: "Build \(SupportedRunners.displayVersion(forID: build))"
-                    + (supported ? "" : " (unsupported)"),
-                tone: satisfied ? .ok : .warning,
-                action: satisfied
-                    ? runnerAction(
-                        label: deployed ? "Copy Again" : "Copy", replacingExisting: true
-                    )
-                    : runnerAction()
-            )
-        case .unpatched(let build, _):
-            return StatusRow(
-                title: "Compatibility Tool",
-                value: "Build \(SupportedRunners.displayVersion(forID: build)), not patched.",
-                tone: .warning,
-                action: runnerAction()
-            )
-        case .bundleShaped(let build):
-            return StatusRow(
-                title: "Compatibility Tool",
-                value: "Build \(SupportedRunners.displayVersion(forID: build)), needs re-setup.",
-                tone: .warning,
-                action: runnerAction()
-            )
-        case .broken:
-            return StatusRow(
-                title: "Compatibility Tool",
-                value: "Unusable.",
-                tone: .bad,
-                action: runnerAction()
-            )
+        case .cloned(let build, let supported) where build == FreeRuntime.id:
+            return StatusRow(title: "Wine 11 (Sikarugir)", value: supported ? "Ready." : "Needs repair.", tone: supported ? .ok : .warning)
+        case .unpatched(let build, let problems) where build == FreeRuntime.id:
+            return StatusRow(title: "Wine 11 (Sikarugir)", value: "Needs repair.", tone: .warning, detail: problems.joined(separator: "; "))
+        case .none: return StatusRow(title: "Wine 11 (Sikarugir)", value: "Not installed.", tone: .neutral)
+        case .broken(let detail): return StatusRow(title: "Wine 11 (Sikarugir)", value: "Needs repair.", tone: .warning, detail: detail)
+        default: return StatusRow(title: "Wine 11 (Sikarugir)", value: "Another runtime is selected. Install to use Wine / GPTK.", tone: .info)
         }
     }
 
-    private func fetchAction() -> StatusAction {
-        StatusAction(
-            label: "Fetch Valve Binaries",
-            isProminent: true,
-            help: "Download missing Valve binaries.",
-            isEnabled: status.isIdle
-        ) { Task { await status.fetchValveBinaries() } }
-    }
-
-    @ViewBuilder
-    private func componentsSection(_ payload: PayloadState) -> some View {
-        if let problem = payload.manifestProblem {
-            Section("NotProton Components") {
-                StatusRow(title: "Components", value: "Component list unreadable.", tone: .bad, detail: problem)
-            }
-        } else if payload.isComplete {
-            Section("NotProton Components") {
-                StatusRow(title: "Components", value: "Ready.", tone: .ok)
-            }
-        } else if payload.isEmpty {
-            Section("NotProton Components") {
-                StatusRow(title: "Components", value: "Not yet deployed.", tone: .neutral)
-            }
-        } else {
-            Section("NotProton Components") {
-                if !payload.missing.isEmpty {
-                    let names = payload.missing.map {
-                        URL(filePath: $0.path).lastPathComponent
-                    }.joined(separator: ", ")
-                    StatusRow(
-                        title: "Missing",
-                        value: names,
-                        tone: .bad,
-                        action: payload.missing.contains(where: { $0.origin.isFetchable })
-                            ? fetchAction() : nil
-                    )
-                }
-                if !payload.overlayShimPresent {
-                    StatusRow(title: "Overlay shim", value: "Missing.", tone: .bad)
-                }
-                if payload.signatureDatabase == nil {
-                    StatusRow(title: "Signature database", value: "Missing.", tone: .bad)
-                }
-            }
-        }
+    private func componentDetail(_ payload: PayloadState) -> String? {
+        if let problem = payload.manifestProblem { return problem }
+        if !payload.missing.isEmpty { return "Missing: " + payload.missing.map(\.path).joined(separator: ", ") }
+        return nil
     }
 }

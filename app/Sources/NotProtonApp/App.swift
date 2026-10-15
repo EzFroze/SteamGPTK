@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Self-explanatory
 
 import SwiftUI
@@ -8,31 +9,26 @@ struct NotProtonApp: App {
     @State private var status = SystemStatus()
     @State private var prefixes = PrefixesModel()
     @State private var pane: Pane = .status
-    private let updater = AppUpdater()
 
     init() {
         AppLog.start()
     }
 
     var body: some Scene {
-        Window("NotProton", id: "main") {
+        Window("SteamGPTK · Wine / GPTK", id: "main") {
             RootView(pane: $pane)
                 .environment(status)
                 .environment(prefixes)
                 .frame(minWidth: 720, minHeight: 460)
                 .onChange(of: pane) { prefixes.forgetOutcome() }
         }
-        .defaultSize(width: 900, height: 760)
+        .defaultSize(width: 980, height: 860)
         .commands { menus }
     }
 
     @CommandsBuilder
     private var menus: some Commands {
         CommandGroup(replacing: .newItem) {}
-
-        CommandGroup(after: .appInfo) {
-            Button("Check for Updates…") { updater.check() }
-        }
 
         CommandGroup(after: .sidebar) {
             Button("Status") { pane = .status }
@@ -61,20 +57,23 @@ struct NotProtonApp: App {
         CommandMenu("Setup") {
             Button("Install") { Task { await status.requestInstall() } }
                 .keyboardShortcut("i", modifiers: .command)
-                .disabled(!status.isIdle)
+                .disabled(!status.isIdle || prefixes.isBusy)
 
             Button("Set Up Compatibility Tool") { Task { await status.requestCompatibilityTool() } }
-                .disabled(!status.isIdle || status.setupSource == nil)
+                .disabled(!status.isIdle || prefixes.isBusy || status.snapshot?.steamRunning == true)
+
+            Button("Import GPTK DMG…") { Task { await status.importGPTK() } }
+                .disabled(!status.isIdle || prefixes.isBusy || status.snapshot?.steamRunning == true)
 
             Button("Fetch Valve Binaries") { Task { await status.fetchValveBinaries() } }
-                .disabled(!status.isIdle)
+                .disabled(!status.isIdle || prefixes.isBusy)
 
             Divider()
 
             updateBlockCommand
 
             Button("Repair Steam") { status.pendingConfirmation = .replaceSteam }
-                .disabled(!status.isIdle)
+                .disabled(!status.isIdle || prefixes.isBusy)
 
             Divider()
 
@@ -137,18 +136,18 @@ struct NotProtonApp: App {
     }
 
     private var prefixTarget: WinePrefix? {
-        prefixes.isBusy ? nil : prefixes.selectedPrefix
+        prefixes.isBusy || status.isBusy ? nil : prefixes.selectedPrefix
     }
 
     private var selectionTargets: [WinePrefix] {
-        prefixes.isBusy ? [] : prefixes.selectedPrefixes
+        prefixes.isBusy || status.isBusy ? [] : prefixes.selectedPrefixes
     }
 
     @ViewBuilder
     private var updateBlockCommand: some View {
         if status.snapshot?.updateBlocked == true {
             Button("Allow Client Updates") { Task { await status.setUpdateBlock(false) } }
-                .disabled(!status.isIdle)
+                .disabled(!status.isIdle || prefixes.isBusy)
         } else {
             Button("Block Client Updates") { status.pendingConfirmation = .blockUpdates }
                 .disabled(!status.isIdle || status.snapshot == nil)

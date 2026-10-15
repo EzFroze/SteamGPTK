@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Shim for the Steam overlay. This was deeply unpleasant to make,
 // fixes HDR stuff and Metal 4.
 //
@@ -9,7 +10,6 @@
 
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
-#import <AppKit/AppKit.h>
 
 #import <dlfcn.h>
 #import <mach-o/dyld.h>
@@ -807,10 +807,37 @@ static void announce_through_wrapper(const struct interpose_pair *pairs, unsigne
 	shim_log("overlay_shim announce_through_wrapper: announced\n");
 }
 
-// Note: Valve's gameoverlayrenderer.dylib CGLFlushDrawable replacement dereferences
-// internal state that is null for Wine-created CGL contexts, causing a segfault (0xc0000005)
-// on every wglSwapBuffers call and producing a black screen with working audio in OpenGL/D3D9 games.
-// Metal rendering paths (D3DMetal / Metal 4) are handled by the Metal hooks above.
+typedef int (*cgl_flush_fn)(void *);
+
+static cgl_flush_fn overlay_cgl_flush;
+static void (*next_flush_buffer)(id, SEL);
+
+static void hook_flush_buffer(id context, SEL selector)
+{
+	typedef void *(*cgl_context_fn)(id, SEL);
+
+	void *cgl = ((cgl_context_fn)objc_msgSend)(context, sel_registerName("CGLContextObj"));
+
+	if (overlay_cgl_flush != NULL && cgl != NULL) {
+		overlay_cgl_flush(cgl);
+		return;
+	}
+
+	next_flush_buffer(context, selector);
+}
+
+static void adopt_overlay_gl_present(const struct interpose_pair *pairs, unsigned long count)
+{
+	overlay_cgl_flush = (cgl_flush_fn)overlay_replacement(pairs, count, "CGLFlushDrawable");
+
+	int hooked = 0;
+	if (overlay_cgl_flush != NULL)
+		hooked = interpose(objc_getClass("NSOpenGLContext"), "flushBuffer",
+		                   (IMP)hook_flush_buffer, (IMP *)&next_flush_buffer);
+
+	shim_log("overlay_shim adopt_overlay_gl_present: replacement=%s flushBuffer=%s\n",
+	        overlay_cgl_flush != NULL ? "found" : "missing", hooked ? "hooked" : "missed");
+}
 
 static void apply_overlay_interposes(void)
 {
@@ -845,6 +872,7 @@ static void apply_overlay_interposes(void)
 	        rebound);
 
 	announce_through_wrapper(pairs, count);
+	adopt_overlay_gl_present(pairs, count);
 }
 
 static id stub_init(id self, SEL selector)
@@ -914,180 +942,6 @@ __attribute__((visibility("default"))) void np_overlay_shim_install(void)
 	kick_renderer_metal_hooks();
 	report_renderer_chain();
 }
-
-// ==============================================================================
-// Wine MacDRV function bridge for Apple libd3dshared.dylib (D3DMetal)
-//
-// In Wine 8.0+ WOW64 (Wine-Crossover 23.7+), the graphics driver module is
-// named winemac.so instead of winemac.drv.so and does not export macdrv_functions.
-// libd3dshared.dylib calls dlsym(RTLD_DEFAULT, "macdrv_functions") and asserts
-// that drv != NULL at shared.mm:605.
-//
-// This export provides the macdrv interface required by libd3dshared.dylib to
-// query the Cocoa view for an HWND, create the WineMetalView, and retrieve
-// its CAMetalLayer for rendering.
-// ==============================================================================
-
-struct fake_macdrv_win_data {
-	void *pad[3];            // 0x00, 0x08, 0x10
-	void *client_cocoa_view; // 0x18
-};
-
-static int macdrv_stub_init(int a)
-{
-	(void)a;
-	return 0;
-}
-
-typedef void *(*macdrv_get_view_fn)(void *);
-
-static void *macdrv_stub_get_win_data(void *hwnd)
-{
-	static macdrv_get_view_fn fn_client = NULL;
-	static macdrv_get_view_fn fn_cocoa = NULL;
-	static int resolved = 0;
-	if (!resolved) {
-		fn_client = (macdrv_get_view_fn)dlsym(RTLD_DEFAULT, "macdrv_get_client_cocoa_view");
-		fn_cocoa = (macdrv_get_view_fn)dlsym(RTLD_DEFAULT, "macdrv_get_cocoa_view");
-		resolved = 1;
-	}
-	void *view = NULL;
-	if (fn_client) view = fn_client(hwnd);
-	if (!view && fn_cocoa) view = fn_cocoa(hwnd);
-
-	shim_log("overlay_shim macdrv_get_win_data: hwnd=%p -> view=%p\n", hwnd, view);
-
-	struct fake_macdrv_win_data *data = (struct fake_macdrv_win_data *)calloc(1, sizeof(struct fake_macdrv_win_data));
-	if (data) {
-		data->client_cocoa_view = view;
-	}
-	return data;
-}
-
-static void macdrv_stub_release_win_data(void *data)
-{
-	if (data) free(data);
-}
-
-static void macdrv_stub_func3(void *p)
-{
-	(void)p;
-}
-
-static id macdrv_stub_get_device(void)
-{
-	id dev = MTLCreateSystemDefaultDevice();
-	shim_log("overlay_shim macdrv_get_device: %p\n", dev);
-	return dev;
-}
-
-static void macdrv_stub_func5(void *dev)
-{
-	(void)dev;
-}
-
-static id macdrv_stub_create_metal_view(id view, id device)
-{
-	if (!view) {
-		shim_log("overlay_shim macdrv_create_metal_view: view is nil!\n");
-		return nil;
-	}
-	__block id metalView = nil;
-	void (^block)(void) = ^{
-		SEL sel = sel_registerName("newMetalViewWithDevice:");
-		if ([view respondsToSelector:sel]) {
-			metalView = ((id (*)(id, SEL, id))objc_msgSend)(view, sel, device);
-		}
-		if (!metalView) {
-			Class cls = objc_getClass("WineMetalView");
-			if (cls) {
-				metalView = [[cls alloc] init];
-				if ([metalView respondsToSelector:sel_registerName("initWithFrame:")]) {
-					NSRect frame = [view bounds];
-					metalView = ((id (*)(id, SEL, NSRect))objc_msgSend)(metalView, sel_registerName("initWithFrame:"), frame);
-				}
-				if ([view respondsToSelector:sel_registerName("addSubview:")]) {
-					[view addSubview:metalView];
-				}
-			} else {
-				NSView *subview = [[NSView alloc] initWithFrame:[view bounds]];
-				CAMetalLayer *layer = [CAMetalLayer layer];
-				layer.device = (id<MTLDevice>)device;
-				[subview setLayer:layer];
-				[subview setWantsLayer:YES];
-				[view addSubview:subview];
-				metalView = subview;
-			}
-		}
-	};
-
-	if ([NSThread isMainThread]) {
-		block();
-	} else {
-		dispatch_sync(dispatch_get_main_queue(), block);
-	}
-
-	shim_log("overlay_shim macdrv_create_metal_view: view=%p device=%p -> metalView=%p\n",
-	        view, device, metalView);
-	return metalView;
-}
-
-static id macdrv_stub_get_metal_layer(id metalView)
-{
-	if (!metalView) {
-		shim_log("overlay_shim macdrv_get_metal_layer: metalView is nil!\n");
-		return nil;
-	}
-	__block id layer = nil;
-	void (^block)(void) = ^{
-		if ([metalView respondsToSelector:sel_registerName("layer")]) {
-			layer = [metalView layer];
-		}
-		if (!layer && [metalView isKindOfClass:[CAMetalLayer class]]) {
-			layer = metalView;
-		}
-	};
-
-	if ([NSThread isMainThread]) {
-		block();
-	} else {
-		dispatch_sync(dispatch_get_main_queue(), block);
-	}
-
-	shim_log("overlay_shim macdrv_get_metal_layer: metalView=%p -> layer=%p\n",
-	        metalView, layer);
-	return layer;
-}
-
-static void macdrv_stub_destroy_metal_view(id metalView)
-{
-	if (!metalView) return;
-	void (^block)(void) = ^{
-		if ([metalView respondsToSelector:sel_registerName("removeFromSuperview")]) {
-			[metalView removeFromSuperview];
-		}
-	};
-
-	if ([NSThread isMainThread]) {
-		block();
-	} else {
-		dispatch_sync(dispatch_get_main_queue(), block);
-	}
-}
-
-__attribute__((visibility("default")))
-void *macdrv_functions[32] = {
-	(void *)macdrv_stub_init,               // 0x00
-	(void *)macdrv_stub_get_win_data,       // 0x08
-	(void *)macdrv_stub_release_win_data,   // 0x10
-	(void *)macdrv_stub_func3,              // 0x18
-	(void *)macdrv_stub_get_device,         // 0x20
-	(void *)macdrv_stub_func5,              // 0x28
-	(void *)macdrv_stub_create_metal_view,  // 0x30
-	(void *)macdrv_stub_get_metal_layer,    // 0x38
-	(void *)macdrv_stub_destroy_metal_view, // 0x40
-	NULL
-};
 
 __attribute__((constructor)) static void overlay_shim_load(void)
 {

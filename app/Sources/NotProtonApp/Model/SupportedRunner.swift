@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Allow list of CrossOver builds the runner clones from. The ntdll hook sites
 // are hardcoded RVAs, so a build not pinned here would be patched at the wrong
 // offsets. New builds go in after running ntdll-patch/resolve.py and pinning
@@ -32,7 +33,7 @@ struct RunnerBuild: Sendable, Equatable, Identifiable {
 
     var flavorName: String { flavor?.uppercased() ?? "Rosetta" }
 
-    var displayVersion: String { "\(releaseVersion) \(flavorName)" }
+    var displayVersion: String { id == FreeRuntime.id ? "Wine 11 (Sikarugir)" : "\(releaseVersion) \(flavorName)" }
 }
 
 enum SupportedRunners {
@@ -73,7 +74,8 @@ enum SupportedRunners {
     }
 
     static func build(id: String) -> RunnerBuild? {
-        all.first { $0.id == id }
+        if id == FreeRuntime.id { return FreeRuntime.build }
+        return all.first { $0.id == id }
     }
 
     static func displayVersion(forID id: String) -> String {

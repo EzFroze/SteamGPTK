@@ -60,7 +60,7 @@ DEPS := $(OBJS:.o=.d)
         tests-list overlay-shim overlay-shim-install overlay-shim-tests \
         overlay-shim-bench iconmaker icon \
         appinfo helpers-install ntdll-resolve bridge runcheck compatcheck \
-        compatsvc-check scriptcheck
+        compatsvc-check scriptcheck profilecheck
 
 APP_PAYLOAD := app/Sources/NotProtonApp/Resources/payload
 
@@ -85,17 +85,23 @@ runcheck:
 	shellcheck dylib/feats/compat_run.sh && sh -n dylib/feats/compat_run.sh && \
 	echo "==> runcheck: the run script lints and parses clean"
 
+profilecheck:
+	sh dylib/tests/profilecheck.sh dylib/feats/compat_run.sh
+
 # runcheck owns compat_run.sh, whose warnings wait for a change that can move
 # the embedded __text baseline
-SCRIPTS := $(shell git ls-files '*.sh' 2>/dev/null | grep -v '^dylib/feats/compat_run\.sh$$')
+SCRIPTS := $(shell git ls-files '*.sh' 2>/dev/null | grep -v -e '^dylib/feats/compat_run\.sh$$' -e '^app/Sources/NotProtonApp/Resources/compat_run\.sh$$')
 
 scriptcheck:
 	@if ! command -v shellcheck >/dev/null 2>&1; then \
 		$(call SKIP,scriptcheck,shellcheck); exit 0; fi; \
 	if [ -z "$(strip $(SCRIPTS))" ]; then $(call SKIP,scriptcheck,a git checkout); exit 0; fi; \
 	for s in $(SCRIPTS); do \
-		shellcheck "$$s" || exit 1; \
-		sh -n "$$s" || exit 1; \
+		shellcheck -x "$$s" || exit 1; \
+		case "$$(head -n 1 "$$s")" in \
+		  *bash*) bash -n "$$s" || exit 1 ;; \
+		  *) sh -n "$$s" || exit 1 ;; \
+		esac; \
 	done; \
 	echo "==> scriptcheck: $(words $(SCRIPTS)) scripts lint and parse clean"
 
@@ -398,6 +404,7 @@ dobby:
 	@mkdir -p $(DOBBY_DIR)
 	cd $(DOBBY_DIR) && cmake $(CURDIR)/vendor/dobby \
 		-DCMAKE_OSX_ARCHITECTURES=arm64 \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 		-DCMAKE_OSX_DEPLOYMENT_TARGET=$(MIN_VER) \
 		-DDOBBY_DEBUG=OFF \
 		-DDOBBY_GENERATE_SHARED=OFF \

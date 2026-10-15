@@ -1,0 +1,19 @@
+# SteamGPTK changes
+
+## Initial Wine/GPTK fork — 2026-10-15
+
+Based on standalone NotProton commit `5b8d18683b619b66390be8cbcffc1fbf47e45971`.
+
+- Use Sikarugir Wine 11 without a commercial CrossOver installation or license.
+- Import GPTK 4 from a user-selected Apple DMG; include no Apple renderer in source or app archives.
+- Detect Wine, Rosetta, imported D3DMetal and the 64-bit Steam bridge correctly in the app.
+- Install and repair the runtime/integration while preserving imported GPTK and game prefixes.
+- Apply the Wine detour from a hash-checked patch recipe instead of bundling a manually prepared Wine DLL.
+- Unify Wine account profiles with `steamuser` for Steam Cloud paths; preserve backups and refuse conflicting save merges.
+- Match current native Steam JavaScript bundles and retain the working Wine 11 overlay implementation.
+- Preserve explicit AVX settings and map Steam's graphics choices to the free runtime.
+- Keep native macOS game launches native unless the user selects a compatibility tool.
+- Provide reproducible build/test scripts, installation guides and fork-specific build/release workflows.
+- Disable upstream application updates in this fork and retain GPL/third-party notices.
+
+Compatibility is experimental. Local validation covered 372 Swift tests, including a disposable full Wine installation, GPTK 4.0 beta 3 import, repair and prefix creation. GitHub Actions results are reported separately after publication.

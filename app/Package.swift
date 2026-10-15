@@ -1,4 +1,5 @@
 // swift-tools-version: 6.2
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 import Foundation
 import PackageDescription
 let testsPath = "Tests/NotProtonAppTests"
@@ -25,6 +26,8 @@ let package = Package(
             path: "Sources/NotProtonApp",
             resources: (hasPayload ? [.copy("Resources/payload")] : []) + [
                 .copy("Resources/payload.manifest"),
+                .copy("Resources/compat_run.sh"),
+                .copy("Resources/ntdll-sikarugir11.json"),
                 .copy("Resources/valve-packages.manifest"),
                 .copy("Resources/detour2.bin"),
                 .copy("Resources/detour32.bin"),

@@ -19,7 +19,8 @@ under the Steamworks SDK license whenever they are used.
 It also compiles against OpenVR and Wine headers, which are BSD-3-Clause and
 LGPL-V2, respectively.
 
-The app bundle embeds Sparkle, which checks for and installs updates. Sparkle is
+The app bundle embeds Sparkle. Automatic upstream updates are disabled in this
+SteamGPTK fork; releases are distributed separately. Sparkle is
 MIT licensed, see
 https://github.com/sparkle-project/Sparkle/blob/2.10.0/LICENSE
 
@@ -30,3 +31,23 @@ These third party files carry their original notices from the project authors:
   steam-shim/json/json-forwards.h    JsonCpp, public domain / MIT (header)
   vendor/cJSON.c                     cJSON, MIT (header)
   vendor/cJSON.h                     cJSON, MIT (header)
+
+SteamGPTK fork additions (2026-10-15)
+====================================
+
+SteamGPTK is a community fork of NotProton, not an Apple or Valve product.
+Its Wine 11 installer, local GPTK import, UI adaptations and profile-path fixes
+remain under the project GPL-3.0 license. Upstream authors and component
+licenses are retained. The standalone base is commit
+5b8d18683b619b66390be8cbcffc1fbf47e45971.
+
+Runtime setup also draws on the mac-windows-gaming project by Xipzer:
+https://github.com/Xipzer/mac-windows-gaming
+
+Sikarugir Wine engines and support libraries are downloaded separately from
+Sikarugir-App/Engines and Sikarugir-App/Wrapper at pinned checksums.
+Apple GPTK/D3DMetal is supplied by the user from Apple's download and is not
+included in the repository or app archive. Apple's terms apply to those files.
+
+Dobby is statically linked into the NotProton module (Apache-2.0):
+https://github.com/jmpews/Dobby/tree/5dfc8546954ce3b3198132ab13fddb89ee92cdd7

@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Path construction for the NotProton support directory and Steam
 
 import Foundation
@@ -42,7 +43,7 @@ enum SupportPaths {
     static var currentRunner: URL { runners.appending(path: "current") }
 
     static func runnerRoot(forBuild build: String, runners: URL = SupportPaths.runners) -> URL {
-        runners.appending(path: "crossover-\(build)")
+        runners.appending(path: build == FreeRuntime.id ? build : "crossover-\(build)")
     }
 
     static func crossOverRoot(inBundle bundle: URL) -> URL {
@@ -50,7 +51,8 @@ enum SupportPaths {
     }
 
     static func clonedRoot(forBuild build: String, runners: URL = SupportPaths.runners) -> URL {
-        runnerRoot(forBuild: build, runners: runners).appending(path: "CrossOver")
+        let root = runnerRoot(forBuild: build, runners: runners)
+        return build == FreeRuntime.id ? root : root.appending(path: "CrossOver")
     }
 
     enum Steam {

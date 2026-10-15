@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 import SwiftUI
 
 enum Pane: String, CaseIterable, Identifiable, Hashable {
@@ -26,6 +27,8 @@ enum Pane: String, CaseIterable, Identifiable, Hashable {
 
 struct RootView: View {
 
+    @Environment(SystemStatus.self) private var status
+
     @Binding var pane: Pane
 
     var body: some View {
@@ -45,5 +48,6 @@ struct RootView: View {
             case .backups: BackupsView()
             }
         }
+        .disabled(status.isBusy)
     }
 }

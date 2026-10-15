@@ -1,10 +1,11 @@
+# SteamGPTK draft releases, updated 2026-10-15.
 name: release
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: Version to release
+      tag:
+        description: New tag, for example steamgptk-v0.1.0
         required: true
         type: string
       release_notes:
@@ -13,62 +14,44 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     uses: ./.github/workflows/app.yml
 
   release:
-    name: publish release
+    name: create draft release
     needs: build
-    runs-on: xcode-27
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
         with:
-          name: NotProton
+          name: SteamGPTK
           path: release
 
-      - name: Verify the archive
-        env:
-          VERSION: ${{ inputs.version }}
+      - name: Verify artifact checksum
         run: |
-          ditto -x -k release/NotProton.zip release/extracted
-          codesign --verify --strict release/extracted/NotProton.app
-          actual=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' release/extracted/NotProton.app/Contents/Info.plist)
-          test "$actual" = "$VERSION"
+          cd release
+          sha256sum -c SteamGPTK.zip.sha256
+          unzip -tq SteamGPTK.zip
 
-      - name: Resolve Sparkle tools
-        run: swift package resolve --package-path app
-
-      - name: Generate the appcast
-        env:
-          RELEASE_NOTES: ${{ inputs.release_notes }}
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-          VERSION: ${{ inputs.version }}
-        run: |
-          printf '%s\n' "$RELEASE_NOTES" > release/NotProton.txt
-          printf '%s' "$SPARKLE_PRIVATE_KEY" | app/.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
-            --ed-key-file - \
-            --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/" \
-            --embed-release-notes \
-            release
-
-      - name: Publish the release
+      - name: Create a new draft without replacing existing releases
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
-          VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          git config user.name NotProtonNot
-          git config user.email 332734261+NotProtonNot@users.noreply.github.com
-          git tag -f -a "v$VERSION" -m "Public release/$VERSION"
-          git push --force origin "v$VERSION"
-          gh release delete "v$VERSION" --yes || true
-          gh release create "v$VERSION" \
-            release/NotProton.zip \
-            release/appcast.xml \
-            --title "$VERSION" \
-            --notes "$RELEASE_NOTES"
+          case "$RELEASE_TAG" in steamgptk-v[0-9]*) ;; *) echo 'Use a steamgptk-v version tag'; exit 1 ;; esac
+          git check-ref-format "refs/tags/$RELEASE_TAG"
+          existing_tag="$(git ls-remote --tags origin "refs/tags/$RELEASE_TAG")"
+          [ -z "$existing_tag" ] || { echo 'Choose a new tag: this tag already exists'; exit 1; }
+          printf '%s\n' "$RELEASE_NOTES" > release/notes.txt
+          gh release create "$RELEASE_TAG" \
+            release/SteamGPTK.zip release/SteamGPTK.zip.sha256 \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --draft --title "$RELEASE_TAG" --notes-file release/notes.txt

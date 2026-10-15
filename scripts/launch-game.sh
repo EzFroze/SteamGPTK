@@ -1,4 +1,5 @@
 #!/bin/bash
+# SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 # ==============================================================================
 # launch-game.sh
 #
@@ -19,7 +20,6 @@
 set -euo pipefail
 
 RED='\033[0;31m'
-GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 BOLD='\033[1m'
@@ -72,7 +72,7 @@ fi
 
 # Ensure Steam is running
 if ! pgrep -x "steam_osx" >/dev/null 2>&1; then
-    printf "${YELLOW}Steam is not running. Launching Steam...${NC}\n"
+    printf '%bSteam is not running. Launching Steam...%b\n' "$YELLOW" "$NC"
     open -a /Applications/Steam.app
     printf "Waiting for Steam to initialize...\n"
     sleep 5
@@ -95,10 +95,10 @@ open "steam://rungameid/$APPID"
 
 if [ "$TAIL_LOG" -eq 1 ]; then
     printf "${BLUE}Following log at: %s${NC}\n" "$LOG_FILE"
-    printf "${YELLOW}(Press Ctrl+C to stop viewing log; game will continue running)${NC}\n\n"
+    printf '%b(Press Ctrl+C to stop viewing log; game will continue running)%b\n\n' "$YELLOW" "$NC"
     
     # Wait for log file to exist
-    for i in {1..20}; do
+    for _ in {1..20}; do
         [ -f "$LOG_FILE" ] && break
         sleep 0.5
     done

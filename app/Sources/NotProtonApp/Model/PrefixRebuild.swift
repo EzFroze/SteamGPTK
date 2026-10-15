@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Prefix rebuild feature, experimental, blah blah.
 
 import Foundation
@@ -152,6 +153,11 @@ extension PrefixTools {
         try? fm.createSymbolicLink(
             atPath: users.appending(path: "crossover").path(percentEncoded: false),
             withDestinationPath: "steamuser")
+        let account = NSUserName()
+        if account != "steamuser", account != "crossover", !account.contains("/"), !account.isEmpty {
+            try? fm.createSymbolicLink(atPath: users.appending(path: account).path,
+                                      withDestinationPath: "steamuser")
+        }
     }
 }
 

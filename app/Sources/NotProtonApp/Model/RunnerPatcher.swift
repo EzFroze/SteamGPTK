@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Patcher logic
 
 import Foundation
@@ -45,6 +46,7 @@ enum RunnerPatcher {
     static func verify(
         build: RunnerBuild, root: URL, bridge: URL = SupportPaths.bridge
     ) -> [String] {
+        if build.id == FreeRuntime.id { return FreeRuntime.verify(root: root) }
         var wrong: [String] = []
         for arch in WineArch.allCases {
             guard let expected = build.patchedNtdll[arch] else { continue }

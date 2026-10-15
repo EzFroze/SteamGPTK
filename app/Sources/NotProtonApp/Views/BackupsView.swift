@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 import SwiftUI
 
 struct BackupsView: View {
@@ -41,7 +42,9 @@ struct BackupsView: View {
         .toolbar {
             if #available(macOS 26.1, *) {
                 ToolbarItemGroup(placement: .primaryAction) { strip }
+                    #if !NOTPROTON_SDK26
                     .visibilityPriority(.high)
+                    #endif
             } else {
                 ToolbarItemGroup(placement: .primaryAction) { strip }
             }

@@ -1,4 +1,5 @@
 #!/bin/bash
+# SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 # ==============================================================================
 # setup-gptk4.sh
 # 
@@ -581,9 +582,9 @@ else
 fi
 
 echo ""
-printf "${GREEN}${BOLD}==============================================================================${NC}\n"
-printf "${GREEN}${BOLD}  NotProton with GPTK 4 (Beta 2) successfully installed!${NC}\n"
-printf "${GREEN}${BOLD}==============================================================================${NC}\n"
+printf '%b%b==============================================================================%b\n' "$GREEN" "$BOLD" "$NC"
+printf '%b%b  NotProton with GPTK 4 (Beta 2) successfully installed!%b\n' "$GREEN" "$BOLD" "$NC"
+printf '%b%b==============================================================================%b\n' "$GREEN" "$BOLD" "$NC"
 echo ""
 echo "How to run games:"
 echo "  1. If Steam is currently running, restart it to load the patched dylib:"

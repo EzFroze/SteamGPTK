@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Checks CrossOver state for status display
 
 import Foundation
@@ -66,6 +67,7 @@ enum RunnerStore {
     }
 
     static func buildIdentifier(inPath path: String) -> String? {
+        if path.split(separator: "/").contains(Substring(FreeRuntime.id)) { return FreeRuntime.id }
         for component in path.split(separator: "/") where component.hasPrefix("crossover-") {
             return String(component.dropFirst("crossover-".count))
         }
@@ -77,8 +79,8 @@ enum RunnerStore {
         let entries = (try? fm.contentsOfDirectory(at: runners, includingPropertiesForKeys: nil)) ?? []
         return entries
             .map(\.lastPathComponent)
-            .filter { $0.hasPrefix("crossover-") }
-            .map { String($0.dropFirst("crossover-".count)) }
+            .filter { $0.hasPrefix("crossover-") || $0 == FreeRuntime.id }
+            .map { $0 == FreeRuntime.id ? $0 : String($0.dropFirst("crossover-".count)) }
             .sorted()
     }
 

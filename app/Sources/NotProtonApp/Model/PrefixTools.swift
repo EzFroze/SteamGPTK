@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Shortcuts to launch the Wine tools (winecfg/regedit/task manager) against
 // a selected prefix, opens prefix directory in finder, etc.
 
@@ -41,6 +42,9 @@ enum PrefixTools {
         environment["WINEPREFIX"] = prefix.pfx.path(percentEncoded: false)
         environment["WINEMSYNC"] = syncBackend(prefix: prefix)
         environment["PATH"] = "\(root)/bin:" + (environment["PATH"] ?? "/usr/bin:/bin")
+        if FileManager.default.fileExists(atPath: runner.appending(path: "runner.env").path) {
+            environment.merge(FreeRuntime.environment(root: runner)) { _, new in new }
+        }
         return environment
     }
 
@@ -69,6 +73,10 @@ enum PrefixTools {
         }
 
         let unix = runner.appending(path: "lib/wine/x86_64-unix")
+        if executable(runner.appending(path: "bin/wine")), executable(runner.appending(path: "bin/wineserver")) {
+            return WineLayout(loader: runner.appending(path: "bin/wine"),
+                              server: runner.appending(path: "bin/wineserver"), unixDir: unix)
+        }
         let server = hosted.appending(path: "wineserver")
         return WineLayout(
             loader: unix.appending(path: "wine"),

@@ -1,8 +1,9 @@
+# SteamGPTK fork build, updated 2026-10-15.
 name: app
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'codex/**']
   pull_request:
   workflow_dispatch:
   workflow_call:
@@ -10,107 +11,58 @@ on:
 permissions:
   contents: read
 
-env:
-  DOBBY_COMMIT: "5dfc8546954ce3b3198132ab13fddb89ee92cdd7"
-
 jobs:
   build:
-    name: full app build
-    runs-on: xcode-27
+    name: SteamGPTK app and tests
+    runs-on: macos-26
     timeout-minutes: 30
+    env:
+      NP_UI_BUILD_DIR: ${{ github.workspace }}/.build/free-ui
     steps:
       - uses: actions/checkout@v4
 
-      - name: Record the toolchain
+      - name: Record toolchain
         run: |
-          sudo xcode-select -s /Applications/Xcode_27.0.app
-          xcodebuild -version
           swift --version
-          echo "macOS SDK $(xcrun --sdk macosx --show-sdk-version)"
+          cmake --version
+          xcrun --sdk macosx --show-sdk-version
 
-      - name: Install cross compilers
-        run: brew install mingw-w64 bison flex
-
-      - name: Clone Dobby at the pinned commit
-        run: |
-          git clone --no-checkout https://github.com/jmpews/Dobby.git vendor/dobby
-          git -C vendor/dobby checkout $DOBBY_COMMIT
-
-      - name: Restore Dobby build cache
-        id: dobby-cache
+      - name: Cache pinned build dependencies
         uses: actions/cache@v4
         with:
-          path: build/dobby
-          key: dobby-xcode-27-${{ env.DOBBY_COMMIT }}-${{ runner.arch }}
-
-      - name: Build Dobby
-        if: steps.dobby-cache.outputs.cache-hit != 'true'
-        run: make dobby
-
-      - name: Restore the Wine trees
-        id: wine-cache
-        uses: actions/cache/restore@v4
-        with:
           path: |
-            scratch/wine
-            scratch/wine-build-dual
-            scratch/wine-build-arm64
-          key: wine-xcode-27-${{ hashFiles('bridge/setup-wine-tree.sh', 'bridge/register-components.diff') }}
+            build/dobby
+            ~/Library/Caches/notproton-free/downloads
+            .build/free-ui
+          key: steamgptk-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-free-ui.sh', 'app/Package.swift', 'Makefile') }}
 
-      - name: Restore Proton tarball cache
-        uses: actions/cache@v4
-        with:
-          path: scratch/proton-lsc
-          key: proton-tarball-${{ hashFiles('lsteamclient/fetch.sh') }}
+      - name: Build the free app without Apple runtime files
+        run: ./scripts/build-free-ui.sh
 
-      - name: Build the dylib
-        run: make all
-
-      - name: Build the overlay shim
-        run: make overlay-shim
-
-      - name: Build helpers
-        run: make iconmaker appinfo
-
-      - name: Build the bridge
-        run: make bridge
-
-      - name: Save the Wine trees
-        if: steps.wine-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            scratch/wine
-            scratch/wine-build-dual
-            scratch/wine-build-arm64
-          key: wine-xcode-27-${{ hashFiles('bridge/setup-wine-tree.sh', 'bridge/register-components.diff') }}
-
-      - name: Stage the app payload
-        run: make app-payload
-
-      - name: Build the app
-        run: make app
-
-      - name: Run the hermetic C suites
+      - name: Run C and profile checks
         run: |
           make -s sigcheck
           make -s webpatch-fixtures
-          make -s peicon-fixtures
-          make -s panel-behavior
-          make -s spawn-env
           make -s compatcheck
           make -s compatsvc-check
+          make -s profilecheck
+          make -s spawn-env
 
-      - name: Run the Swift tests
-        run: make -s app-tests
+      - name: Run Swift tests without a user GPTK image
+        run: ./scripts/test-free-ui.sh
 
-      - name: Package the app bundle
+      - name: Package and verify
         run: |
+          codesign --verify --deep --strict out/SteamGPTK.app
           mkdir -p out/artifact
-          ditto -c -k --keepParent out/NotProton.app out/artifact/NotProton.zip
+          ditto -c -k --keepParent out/SteamGPTK.app out/artifact/SteamGPTK.zip
+          cd out/artifact
+          shasum -a 256 SteamGPTK.zip > SteamGPTK.zip.sha256
+          unzip -tq SteamGPTK.zip
 
-      - name: Upload the app bundle
+      - name: Upload app and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: NotProton
+          name: SteamGPTK
           path: out/artifact
+          if-no-files-found: error

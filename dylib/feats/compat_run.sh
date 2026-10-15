@@ -1,4 +1,5 @@
 #!/bin/sh
+# SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 # notproton CrossOver compatibility tool shim
 set -e
 
@@ -48,7 +49,7 @@ export D3DM_MTL4="${D3DM_MTL4:-1}"
 export D3DM_ENABLE_METALFX="${D3DM_ENABLE_METALFX:-1}"
 export D3DM_SUPPORT_DXR="${D3DM_SUPPORT_DXR:-1}"
 export ROSETTA_ADVERTISE_AVX="${ROSETTA_ADVERTISE_AVX:-1}"
-export WINEMSYNC="${WINEMSYNC:-1}"
+export WINEMSYNC="${WINEMSYNC:-0}"
 export WINEESYNC="${WINEESYNC:-1}"
 
 wine_unix="$CX_ROOT/lib/wine/aarch64-unix"
@@ -79,6 +80,10 @@ fi
 export WINELOADER WINESERVER
 export WINEDLLPATH="$CX_ROOT/lib/wine/x86_64-windows:$wine_unix"
 export PATH="$CX_ROOT/bin:$PATH"
+export DYLD_FALLBACK_LIBRARY_PATH="$CX_ROOT/lib/deps:$CX_ROOT/lib/external:${DYLD_FALLBACK_LIBRARY_PATH:-/usr/lib}"
+# Free-Wine runners (e.g. Sikarugir Wine 11) ship their own environment
+# shellcheck source=/dev/null
+[ -f "$CX_ROOT/runner.env" ] && . "$CX_ROOT/runner.env"
 
 if [ -n "$STEAM_COMPAT_DATA_PATH" ]; then
   log="$STEAM_COMPAT_DATA_PATH/notproton-run.log"
@@ -174,10 +179,18 @@ merge_user_dir() {
     shift
     src_dir="$src$rest"
     dst_dir="$dst$rest"
-    if [ ! -r "$src_dir" ] || [ ! -x "$src_dir" ]; then failed=1; continue; fi
-    if [ -L "$dst_dir" ] && [ ! -e "$dst_dir" ]; then
-      rm -f "$dst_dir" 2>/dev/null || true
+    if [ "${profile_merge_legacy_paths:-0}" = 1 ]; then
+      case "$rest" in
+        '/My Documents'|'/My Documents/'*)
+          dst_dir="$dst/Documents${rest#'/My Documents'}" ;;
+        '/Application Data'|'/Application Data/'*)
+          dst_dir="$dst/AppData/Roaming${rest#'/Application Data'}" ;;
+        '/Local Settings/Application Data'|'/Local Settings/Application Data/'*)
+          dst_dir="$dst/AppData/Local${rest#'/Local Settings/Application Data'}" ;;
+      esac
     fi
+    if [ ! -r "$src_dir" ] || [ ! -x "$src_dir" ]; then failed=1; continue; fi
+    if [ -L "$dst_dir" ]; then failed=1; continue; fi
     probe=$dst_dir
     through=
     while [ -n "$probe" ] && [ "$probe" != "$dst" ]; do
@@ -189,7 +202,7 @@ merge_user_dir() {
       failed=1
       continue
     fi
-    if [ -n "$rest" ] && [ -e "$dst_dir" ]; then continue; fi
+    if [ -e "$dst_dir" ] && [ ! -d "$dst_dir" ]; then failed=1; continue; fi
     if ! mkdir -p "$dst_dir" 2>/dev/null; then failed=1; continue; fi
     for entry in "$src_dir"/* "$src_dir"/.[!.]* "$src_dir"/..?*; do
       [ -e "$entry" ] || [ -L "$entry" ] || continue
@@ -199,16 +212,26 @@ merge_user_dir() {
         continue
       fi
       landing="$dst_dir/$name"
-      if [ -e "$landing" ]; then continue; fi
-      if [ -L "$landing" ]; then rm -f "$landing" 2>/dev/null || true; fi
+      # Already-shared saves include the earlier per-game Cloud repair.
+      if [ -e "$entry" ] && [ -e "$landing" ] && [ "$entry" -ef "$landing" ]; then
+        continue
+      fi
+      # Keep host-folder links in the backed-up profile, never traverse/import
+      # Documents/Desktop/etc. outside this game's prefix.
+      if [ -L "$entry" ] && [ "${profile_merge_skip_links:-0}" = 1 ]; then continue; fi
+      if [ -e "$landing" ] || [ -L "$landing" ]; then
+        if [ -L "$entry" ] && [ -L "$landing" ] \
+          && [ "$(readlink "$entry")" = "$(readlink "$landing")" ]; then continue; fi
+        if [ -f "$entry" ] && [ ! -L "$entry" ] && [ -f "$landing" ] \
+          && [ ! -L "$landing" ] && cmp -s "$entry" "$landing"; then continue; fi
+        echo "=== conflicting profile file: $landing ===" >> "$log" 2>&1 || true
+        failed=1
+        continue
+      fi
       if [ -L "$entry" ]; then
-        if ! cp -Pp "$entry" "$landing" 2>/dev/null; then
-          rm -f "$landing" 2>/dev/null || true
-          failed=1
-        fi
+        cp -Ppn "$entry" "$landing" 2>/dev/null || failed=1
       else
-        if ! cp -p "$entry" "$landing" 2>/dev/null; then
-          rm -f "$landing" 2>/dev/null || true
+        if ! cp -pn "$entry" "$landing" 2>/dev/null || ! cmp -s "$entry" "$landing"; then
           failed=1
         fi
         chmod u+w "$landing" 2>/dev/null || true
@@ -221,6 +244,7 @@ merge_user_dir() {
 # Steam Cloud stuff
 migrate_user_paths() {
   profile=$1
+  migration_failed=0
   for pair in \
     "Local Settings/Application Data|AppData/Local|../AppData/Local" \
     "Application Data|AppData/Roaming|./AppData/Roaming" \
@@ -237,6 +261,7 @@ migrate_user_paths() {
     if [ -L "$new" ]; then
       echo "=== $new_rel is a link, rebuild the prefix for cloud saves ===" \
         >> "$log" 2>&1 || true
+      migration_failed=1
       continue
     fi
     held=
@@ -251,19 +276,26 @@ migrate_user_paths() {
     if [ -n "$held" ]; then
       echo "=== $held is a link, rebuild the prefix for cloud saves ===" \
         >> "$log" 2>&1 || true
+      migration_failed=1
       continue
     fi
     if [ -e "$old" ] && [ ! -L "$old" ]; then
       if ! merge_user_dir "$old" "$new"; then
         echo "=== $old_rel did not merge into $new_rel, left in place ===" \
           >> "$log" 2>&1 || true
+        migration_failed=1
         continue
       fi
-      rmdir "$old BACKUP" 2>/dev/null || true
-      if [ -e "$old BACKUP" ] || [ -L "$old BACKUP" ] \
-        || ! mv "$old" "$old BACKUP" 2>> "$log"; then
+      backup="$old BACKUP"
+      backup_number=2
+      while [ -e "$backup" ] || [ -L "$backup" ]; do
+        backup="$old BACKUP $backup_number"
+        backup_number=$((backup_number + 1))
+      done
+      if ! mv "$old" "$backup" 2>> "$log"; then
         echo "=== $old_rel could not be moved aside, cloud saves stay split ===" \
           >> "$log" 2>&1 || true
+        migration_failed=1
         continue
       fi
     fi
@@ -279,27 +311,71 @@ migrate_user_paths() {
         || true
     fi
   done
+  [ "$migration_failed" -eq 0 ]
 }
+
+# CrossOver names its Wine user "crossover", but free Wine uses getpwuid().
+# Alias that profile before wineboot so every Windows save root stays in the
+# real steamuser directory that native Steam AutoCloud reads and writes.
+alias_host_profile() (
+  host_user=$(id -un) || return 1
+  case "$host_user" in
+    steamuser|crossover) return 0 ;;
+    ''|.|..|Public|Default|*/*) return 1 ;;
+  esac
+  legacy="$users/$host_user"
+  if [ -L "$legacy" ]; then
+    [ -e "$legacy" ] && [ "$legacy" -ef "$profile" ] && return 0
+    echo "=== host Wine profile points elsewhere, left in place: $legacy ===" >> "$log" 2>&1 || true
+    return 1
+  fi
+  if [ -e "$legacy" ]; then
+    [ -d "$legacy" ] || return 1
+    profile_merge_skip_links=1
+    profile_merge_legacy_paths=1
+    if ! merge_user_dir "$legacy" "$profile"; then
+      echo "=== profile migration refused; both versions remain in place ===" >> "$log" 2>&1 || true
+      return 1
+    fi
+    held="$legacy.notproton-backup.$(date +%Y%m%d-%H%M%S)"
+    while [ -e "$held" ] || [ -L "$held" ]; do held="$held.1"; done
+    mv "$legacy" "$held" || return 1
+    if ! ln -s steamuser "$legacy"; then
+      mv "$held" "$legacy" || true
+      return 1
+    fi
+    echo "=== preserved previous Wine profile at $held ===" >> "$log" 2>&1 || true
+  else
+    ln -s steamuser "$legacy" || return 1
+  fi
+  echo "=== linked Wine profile $host_user to steamuser for Steam Cloud ===" >> "$log" 2>&1 || true
+)
 
 lay_out_proton_profile() {
   users="$WINEPREFIX/drive_c/users"
+  for root in "$WINEPREFIX" "$WINEPREFIX/drive_c" "$users"; do
+    [ ! -L "$root" ] || return 1
+    if [ -e "$root" ] && [ ! -d "$root" ]; then return 1; fi
+  done
   if [ -d "$users/crossover" ] && [ ! -L "$users/crossover" ]; then
     echo "=== prefix predates the steamuser layout, rebuild it for cloud saves ===" \
       >> "$log" 2>&1 || true
-    return 0
+    return 1
   fi
   profile="$users/steamuser"
   if [ -L "$profile" ]; then
     echo "=== the profile is a link, rebuild the prefix for cloud saves ===" \
       >> "$log" 2>&1 || true
-    return 0
+    return 1
   fi
-  mkdir -p "$profile" 2>/dev/null || return 0
+  mkdir -p "$profile" 2>/dev/null || return 1
   for folder in Documents Desktop Downloads Music Pictures Videos Templates \
-      AppData/Local AppData/Roaming; do
-    mkdir -p "$profile/$folder" 2>/dev/null || true
+      'Saved Games' AppData AppData/Local AppData/LocalLow AppData/Roaming; do
+    [ ! -L "$profile/$folder" ] || return 1
+    mkdir -p "$profile/$folder" 2>/dev/null || return 1
   done
-  migrate_user_paths "$profile"
+  migrate_user_paths "$profile" || return 1
+  alias_host_profile || return 1
   if [ -L "$users/crossover" ] && [ ! -e "$users/crossover" ]; then
     rm -f "$users/crossover" 2>/dev/null || true
   fi
@@ -346,7 +422,10 @@ if [ -n "$STEAM_COMPAT_DATA_PATH" ]; then
   "$WINELOADER" reg add 'HKLM\Software\Wow6432Node\Microsoft\Windows NT\CurrentVersion\AeDebug' /v Auto /t REG_SZ /d 0 /f >> "$log" 2>&1 || true
   "$WINELOADER" reg add 'HKCU\Software\Wine\WineDbg' /v ShowCrashDialog /t REG_DWORD /d 0 /f >> "$log" 2>&1 || true
 
-  echo "video: RetinaMode=${NOTPROTON_RETINA:-0}" >> "$log" 2>&1 || true
+  # Retina on by default so games see real pixels (e.g. 3024x1964) instead of the scaled
+  # "looks like" size; pass NOTPROTON_RETINA=0 after %command% to opt a game out.
+  NOTPROTON_RETINA="${NOTPROTON_RETINA:-1}"
+  echo "video: RetinaMode=$NOTPROTON_RETINA" >> "$log" 2>&1 || true
   if [ "$NOTPROTON_RETINA" = "1" ]; then
     "$WINELOADER" reg add 'HKCU\Software\Wine\Mac Driver' /v RetinaMode /t REG_SZ /d y /f >> "$log" 2>&1 || true
   else
@@ -400,9 +479,7 @@ install_lsteamclient_trigger() {
     if ! cmp -s "$src64" "$dst64"; then
       cp -f "$src64" "$dst64" && echo "=== installed system32 lsteamclient trigger ===" >> "$log" 2>&1 || true
     fi
-    if ! cmp -s "$src64" "$dst64_sc"; then
-      cp -f "$src64" "$dst64_sc" && echo "=== installed system32 steamclient64 trigger ===" >> "$log" 2>&1 || true
-    fi
+    rm -f "$dst64_sc"
   fi
 }
 
@@ -691,6 +768,8 @@ fi
 cat > "$loader_macos/launcher" <<LAUNCHER
 #!/bin/sh
 export WINELOADER="$WINELOADER"
+# SIP strips DYLD_* when exec-ing /bin/sh, so bake the runner lib path in here
+export DYLD_FALLBACK_LIBRARY_PATH="$DYLD_FALLBACK_LIBRARY_PATH"
 wine_log="$loader_root/notproton-wine.log"
 exec > "\$wine_log" 2>&1
 shim="$HOME/Library/Application Support/notproton/overlay-shim.dylib"
@@ -726,6 +805,8 @@ prefix_server_dir() {
 }
 
 prefix_game_running() {
+  # Keep full process arguments for the Wine helper exclusions below.
+  # shellcheck disable=SC2009
   ps -ww -eo pid,args 2>/dev/null | \
     grep -v "^[[:space:]]*$$[[:space:]]" | \
     grep -iE '/(wine|wine64|wine-preloader|wine64-preloader)' | \
@@ -736,6 +817,8 @@ prefix_game_running() {
 
 activate_game() {
   echo "=== activating game window ===" >> "$log" 2>&1 || true
+  # Keep full process arguments for the Wine helper exclusions below.
+  # shellcheck disable=SC2009
   game_pid=$(ps -ww -eo pid,args 2>/dev/null | grep -iE '/(wine|wine64|wine-preloader|wine64-preloader)' | grep -iE '\.exe' | grep -viE "$wine_helpers" | awk '{print $1}' | head -1)
   if [ -n "$game_pid" ]; then
     swift - "$game_pid" << 'EOF' >> "$log" 2>&1 || osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $game_pid) to true" >> "$log" 2>&1 || true
@@ -751,7 +834,7 @@ wait_prefix_idle() {
   idle=0
   activated=0
   # Wait up to 20 seconds for the game process to appear
-  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
     prefix_game_running && break
     sleep 1
   done
@@ -813,7 +896,7 @@ fi
 
 
 set -- --args "$shim_exe" "$@"
-for name in $(env | sed -nE 's/^(Steam[A-Za-z0-9]*|(CX_GRAPHICS|D3DM_|DXMT_|DXVK_|MTL_|ROSETTA_)[A-Z0-9_]*)=.*/\1/p'); do
+for name in $(env | sed -nE 's/^(Steam[A-Za-z0-9]*|SikarugirApp[A-Za-z0-9]*|GST_PLUGIN_PATH|VK_DRIVER_FILES|WINEBOOT_HIDE_DIALOG|WINEESYNC|(CX_GRAPHICS|CX_D3DMETAL|CX_APPLEGPT|CX_FWD|WINEDLLPATH_|D3DM_|DXMT_|DXVK_|MVK_|MTL_|ROSETTA_)[A-Z0-9_]*)=.*/\1/p'); do
   eval "value=\$$name"
   # shellcheck disable=SC2154 # eval assigns value on the line above
   set -- --env "$name=$value" "$@"
@@ -827,6 +910,7 @@ set -- \
   --env WINEMSYNC="$WINEMSYNC" \
   --env WINEPREFIX="$WINEPREFIX" \
   --env WINEDEBUG="$WINEDEBUG" \
+  --env DYLD_FALLBACK_LIBRARY_PATH="$DYLD_FALLBACK_LIBRARY_PATH" \
   --env PATH="$PATH" \
   --env STEAM_COMPAT_DATA_PATH="$STEAM_COMPAT_DATA_PATH" \
   --env STEAM_COMPAT_INSTALL_PATH="$STEAM_COMPAT_INSTALL_PATH" \

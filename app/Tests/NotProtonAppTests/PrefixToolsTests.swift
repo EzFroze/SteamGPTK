@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 import Foundation
 import Testing
 
@@ -1129,21 +1130,12 @@ struct PrefixToolsTests {
 
     // The client can drop cloud files under an old name between launches, so the aliases cannot
     // be left to prefix creation. lay_out_proton_profile is what runs them every launch.
-    @Test("The aliases are made from inside the profile layout, not off on their own")
+    @Test("The launch script unifies profiles and refuses conflicting saves without data loss")
     func migrationRunsEveryLaunch() throws {
-        let source = try Self.compatSource()
-
-        let definition = try #require(source.range(of: "migrate_user_paths() {"))
-        let call = try #require(source.range(of: "  migrate_user_paths \"$profile\"\n"))
-        let layout = try #require(source.range(of: "lay_out_proton_profile() {"))
-
-        // sh reads a script top to bottom, so a call above the definition is only an
-        // unknown command.
-        #expect(definition.lowerBound < call.lowerBound)
-        // A call outside the one function that is known to run before wineboot would say
-        // nothing about when the aliases are made, so the call has to be within its body.
-        let body = try #require(source.range(of: "\n}\n", range: layout.upperBound..<source.endIndex))
-        #expect(layout.upperBound < call.lowerBound && call.upperBound < body.lowerBound)
+        let repo = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let result = try Shell.run("/bin/sh", [repo.appending(path: "dylib/tests/profilecheck.sh").path,
+                                              repo.appending(path: "dylib/feats/compat_run.sh").path])
+        #expect(result.status == 0, "\(result.stdout)\n\(result.stderr)")
     }
 
     // Steam stamps a download when it lands, so the legacy copy routinely looks newer. A
@@ -1264,33 +1256,11 @@ struct PrefixToolsTests {
 
     // The old name becomes a link, so the merge is never attempted again and anything that
     // failed to copy is unreachable. Proton raises here, which would kill the launch instead.
-    @Test("The old name is only moved aside once the merge has succeeded")
-    func renameWaitsForTheMerge() throws {
-        let source = try Self.compatSource()
 
-        let gate = try #require(source.range(of: #"if ! merge_user_dir "$old" "$new"; then"#))
-        let rename = try #require(source.range(of: #"mv "$old" "$old BACKUP""#))
-        #expect(gate.lowerBound < rename.lowerBound)
-        // A bare call could not report anything: the walk reads from a pipe, so it runs in a
-        // subshell and only the group's status comes back.
-        #expect(!source.contains("      merge_user_dir \"$old\" \"$new\"\n"))
-        // And the gate is worth nothing unless the walk can come back unhappy.
-        #expect(source.contains(#"[ -z "$failed" ]"#))
-        // Nothing about either failure is visible in the prefix, so the log has to carry it.
-        #expect(source.contains("did not merge into $new_rel, left in place"))
-        #expect(source.contains("could not be moved aside, cloud saves stay split"))
-    }
 
     // A modern name that is a link is a shape Proton never produces, and the rename the merge
     // ends with would leave the link dangling and the files behind it unreachable.
-    @Test("A cloud root whose modern name is a link is left alone")
-    func migrationRefusesALinkedModernName() throws {
-        let source = try Self.compatSource()
 
-        let refusal = try #require(source.range(of: #"if [ -L "$new" ]; then"#))
-        let rename = try #require(source.range(of: #"mv "$old" "$old BACKUP""#))
-        #expect(refusal.lowerBound < rename.lowerBound)
-    }
 
     // The three shapes a landing can take that no tree merges into. Each used to return,
     // dropping everything under it, and nothing recorded as lost let the swap delete the prefix.

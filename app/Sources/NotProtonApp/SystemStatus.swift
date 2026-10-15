@@ -1,3 +1,4 @@
+// SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 // Logic behind Status view
 
 import AppKit
@@ -24,6 +25,9 @@ struct StatusSnapshot: Sendable {
     var installedRunners: [RunnerBuild] = []
     var orphanedRunners: [String] = []
     var damagedRunners: [String] = []
+    var gptkVersion: String? = nil
+    var rosettaAvailable = false
+    var cloudProfilesReady = false
 
     static func capture(bundledVersion: String) -> StatusSnapshot {
         let installs = CrossOverSource.discover()
@@ -46,7 +50,10 @@ struct StatusSnapshot: Sendable {
             ),
             installedRunners: RunnerStore.installedBuilds(),
             orphanedRunners: RunnerStore.orphanedClones(),
-            damagedRunners: RunnerStore.damagedClones()
+            damagedRunners: RunnerStore.damagedClones(),
+            gptkVersion: GPTKImport.version(in: FreeRuntime.root.appending(path: GPTKImport.relativePath)),
+            rosettaAvailable: (try? Shell.run("/usr/bin/arch", ["-x86_64", "/usr/bin/true"]).succeeded) == true,
+            cloudProfilesReady: FreeRuntime.cloudProfilesReady()
         )
     }
 }
@@ -55,6 +62,7 @@ struct StatusSnapshot: Sendable {
 @Observable
 final class SystemStatus {
 
+    var selectedGPTKDMG: URL?
     var snapshot: StatusSnapshot?
     var isRefreshing = false
     var activity: String?
@@ -200,35 +208,55 @@ final class SystemStatus {
     }
 
     func requestInstall() async {
-        guard isIdle else { return }
-        checkingLicense = true
-        defer { checkingLicense = false }
-        if let question = Self.activationQuestion(
-            .install,
-            licensed: await checkLicense()?.licensed,
-            runner: snapshot?.runner ?? RunnerState.none
-        ) {
-            pendingConfirmation = question
-        } else {
-            await installIntoSteam()
+        guard isIdle, maintenanceIsAllowed() else { return }
+        if snapshot?.gptkVersion == nil, selectedGPTKDMG == nil {
+            guard chooseGPTKFile() else { return }
         }
+        await installIntoSteam()
     }
 
     func requestCompatibilityTool(
         from chosen: CrossOverInstall? = nil, replacingExisting: Bool = false
     ) async {
-        guard isIdle else { return }
-        checkingLicense = true
-        defer { checkingLicense = false }
-        let install = chosen ?? setupSource
-        if let question = Self.activationQuestion(
-            .compatibilityTool,
-            licensed: await checkLicense(for: install)?.licensed,
-            runner: snapshot?.runner ?? RunnerState.none
-        ) {
-            pendingConfirmation = question
-        } else {
-            await setUpRunner(from: install, replacingExisting: replacingExisting)
+        await requestInstall()
+    }
+
+    private func maintenanceIsAllowed() -> Bool {
+        guard !SteamBundle.isRunning else {
+            setFailure("Quit Steam before installing or importing GPTK. Games and saves have not been changed.")
+            return false
+        }
+        let active = PrefixStore.all(libraries: PrefixStore.libraries()).contains { PrefixStore.isInUse($0) }
+        guard !active else {
+            setFailure("Quit Windows games and Wine tools before continuing.")
+            return false
+        }
+        return true
+    }
+
+    @discardableResult
+    private func chooseGPTKFile() -> Bool {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [UTType(filenameExtension: "dmg")!]
+        panel.message = "Choose Game Porting Toolkit 4 downloaded from Apple. Apple files are imported locally and are not included with NotProton."
+        panel.prompt = "Choose GPTK"
+        guard panel.runModal() == .OK, let file = panel.url else { return false }
+        selectedGPTKDMG = file
+        return true
+    }
+
+    func importGPTK() async {
+        guard isIdle, maintenanceIsAllowed(), chooseGPTKFile(), let dmg = selectedGPTKDMG else { return }
+        await perform(from: "Preparing Wine for GPTK") { progress in
+            try await FreeRunnerInstaller.prepare(report: progress, checkCanWrite: FreeRuntime.requireIdle)
+            progress("Importing GPTK from your DMG")
+            try await Task.detached(priority: .userInitiated) {
+                try GPTKImport.importDMG(dmg, runner: FreeRuntime.root, checkCanWrite: FreeRuntime.requireIdle)
+            }.value
+            selectedGPTKDMG = nil
+            return "GPTK imported locally. Previous renderer files were kept in a backup."
         }
     }
 
@@ -366,39 +394,43 @@ final class SystemStatus {
         "The compatibility tool was not set up because CrossOver is not activated."
 
     func installIntoSteam() async {
-        await perform(from: InstallPhase.checkingPayload.label) { progress in
-            let result = try await Task.detached(priority: .userInitiated) {
-                try SteamInstaller.run(report: { progress($0.label) })
-            }.value
-
-            var parts = ["NotProton successfully installed."]
-            if result.stoppedClient { parts.append(Self.restartHint) }
-            let install = usableCrossOver
-            let state = await Task.detached(priority: .userInitiated) {
-                (runner: RunnerStore.state(),
-                 payload: PayloadInspector.inspect(),
-                 license: install.map { CrossOverLicense.check(crossOverRoot: $0.crossOverRoot) })
-            }.value
-
-            if let install, state.license?.licensed == true, state.runner == .none {
-                progress("Setting up compatibility tool")
-                // A tool that came up is the expected case and goes unsaid. Failure
-                // throws, and an unactivated CrossOver is reported below.
-                _ = try await Task.detached(priority: .userInitiated) {
-                    try RunnerSetup.run(from: install) { progress($0.label) }
+        guard maintenanceIsAllowed() else { return }
+        let dmg = selectedGPTKDMG
+        await perform(from: "Preparing Wine 11") { progress in
+            guard (try? Shell.run("/usr/bin/arch", ["-x86_64", "/usr/bin/true"]).succeeded) == true else {
+                throw StepFailure(step: "Check Rosetta", detail: "Install Rosetta 2, then try again: softwareupdate --install-rosetta")
+            }
+            try await FreeRunnerInstaller.prepare(report: progress, checkCanWrite: FreeRuntime.requireIdle)
+            if let dmg {
+                progress("Importing your GPTK DMG")
+                try await Task.detached(priority: .userInitiated) {
+                    try GPTKImport.importDMG(dmg, runner: FreeRuntime.root, checkCanWrite: FreeRuntime.requireIdle)
                 }.value
-            } else if install != nil, state.license?.licensed == false, state.runner == .none {
-                // Not a failure, NotProton was installed but without a compatibility tool
-                parts.append(Self.toolNotActivated)
             }
-
-            // Fetch binaries from Valve
-            if state.payload.missing.contains(where: { $0.origin.isFetchable }) {
-                progress("Downloading missing components")
-                _ = try await ValveFetcher.run { progress($0.label) }
+            guard GPTKImport.version(in: FreeRuntime.root.appending(path: GPTKImport.relativePath)) != nil else {
+                throw StepFailure(step: "Check GPTK", detail: "Import a GPTK 4 DMG downloaded from Apple first.")
             }
-
-            return parts.joined(separator: " ")
+            progress("Installing Steam integration")
+            _ = try await Task.detached(priority: .userInitiated) {
+                try FreeRuntime.requireIdle()
+                // Validate the patch before modifying Steam.
+                _ = try FreeNtdllPatch.bundled().apply(to: Data(contentsOf: FreeRuntime.root.appending(path: "lib/wine/x86_64-windows/ntdll.dll")))
+                return try SteamInstaller.run(stopClient: { _, _ in
+                    try FreeRuntime.requireIdle()
+                    return false
+                }, report: { progress($0.label) })
+            }.value
+            progress("Configuring Wine and Steam Cloud paths")
+            try await Task.detached(priority: .userInitiated) {
+                try FreeRuntime.requireIdle()
+                try FreeRunnerInstaller.configure(root: FreeRuntime.root, bridge: SupportPaths.bridge,
+                    payload: InstallPayload.root(), tool: SupportPaths.Steam.compatTool)
+                try FreeSteamSignature.installIfNeeded()
+            }.value
+            progress("Verifying Valve components")
+            _ = try await ValveFetcher.run { progress($0.label) }
+            selectedGPTKDMG = nil
+            return "Wine / GPTK is installed. Start Steam to play. Existing game prefixes and saves were kept."
         }
     }
 
