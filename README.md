@@ -20,9 +20,9 @@ The tested machine is an M1 Pro MacBook Pro running macOS 27.0.1. This is an exp
 
 ### 1. Obtain the app
 
-When a SteamGPTK release is available, download `SteamGPTK.zip` from [this fork's Releases](https://github.com/EzFroze/SteamGPTK/releases), extract it, and open `SteamGPTK.app`.
+Download `SteamGPTK.zip` from [this fork's Releases](https://github.com/EzFroze/SteamGPTK/releases), extract it, and open `SteamGPTK.app`. The `.sha256` asset lets you verify the download with `shasum -a 256 -c SteamGPTK.zip.sha256` in the folder containing both files.
 
-Until then, use the source build below. Builds from this repository use a local ad-hoc signature and are not notarized by Apple. Follow the app-specific instructions in macOS **System Settings → Privacy & Security** if Gatekeeper asks for approval; do not disable Gatekeeper globally.
+You can also use the source build below. Builds from this repository use a local ad-hoc signature and are not notarized by Apple. Follow the app-specific instructions in macOS **System Settings → Privacy & Security** if Gatekeeper asks for approval; do not disable Gatekeeper globally.
 
 ### 2. Download your GPTK
 

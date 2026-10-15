@@ -62,8 +62,8 @@ try:
         (contents / name).mkdir(parents=True, exist_ok=True)
     info = plistlib.loads((repo / 'app/Info.plist').read_bytes())
     info.update(CFBundleIdentifier='io.github.ezfroze.steamgptk', CFBundleName='SteamGPTK',
-                CFBundleDisplayName='SteamGPTK', CFBundleShortVersionString='1.0.1',
-                CFBundleVersion='1.0.1', SUEnableAutomaticChecks=False, SUAutomaticallyUpdate=False)
+                CFBundleDisplayName='SteamGPTK', CFBundleShortVersionString='0.1.0',
+                CFBundleVersion='1', SUEnableAutomaticChecks=False, SUAutomaticallyUpdate=False)
     info.pop('SUFeedURL', None)
     info.pop('SUPublicEDKey', None)
     (contents / 'Info.plist').write_bytes(plistlib.dumps(info))

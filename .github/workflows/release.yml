@@ -1,7 +1,9 @@
-# SteamGPTK draft releases, updated 2026-10-15.
+# SteamGPTK releases, updated 2026-10-15.
 name: release
 
 on:
+  push:
+    tags: ['steamgptk-v*']
   workflow_dispatch:
     inputs:
       tag:
@@ -16,13 +18,20 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     uses: ./.github/workflows/app.yml
 
+  lint:
+    uses: ./.github/workflows/lint.yml
+
   release:
-    name: create draft release
-    needs: build
+    name: verify and create release
+    needs: [build, lint]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -40,18 +49,47 @@ jobs:
           sha256sum -c SteamGPTK.zip.sha256
           unzip -tq SteamGPTK.zip
 
-      - name: Create a new draft without replacing existing releases
+      - name: Verify source and prepare release notes
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^steamgptk-v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Use a steamgptk-vX.Y.Z version tag'; exit 1; }
+          git check-ref-format "refs/tags/$RELEASE_TAG"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            git fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+            [ "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$GITHUB_SHA" ] || { echo 'Tag does not match the built source'; exit 1; }
+          else
+            existing_tag="$(git ls-remote --tags origin "refs/tags/$RELEASE_TAG")"
+            [ -z "$existing_tag" ] || { echo 'Choose a new tag: this tag already exists'; exit 1; }
+          fi
+          python3 - <<'PY'
+          import os, plistlib, zipfile
+          with zipfile.ZipFile('release/SteamGPTK.zip') as archive:
+              info = plistlib.loads(archive.read('SteamGPTK.app/Contents/Info.plist'))
+              expected_version = os.environ['RELEASE_TAG'].removeprefix('steamgptk-v')
+              assert info['CFBundleShortVersionString'] == expected_version, 'App version does not match the release tag'
+              source = archive.read('SteamGPTK.app/Contents/Resources/Licenses/SOURCE.txt').decode()
+              assert 'Revision: ' + os.environ['GITHUB_SHA'] + '\n' in source, 'App was built from another commit'
+              assert 'Working tree changes: False\n' in source, 'App was built from a modified working tree'
+          PY
+          if [ -n "$RELEASE_NOTES" ]; then
+            printf '%s\n' "$RELEASE_NOTES" > release/notes.txt
+          else
+            cp "docs/releases/${RELEASE_TAG#steamgptk-v}.md" release/notes.txt
+          fi
+
+      - name: Publish tag releases or create a manual draft
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_NOTES: ${{ inputs.release_notes }}
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
         run: |
-          case "$RELEASE_TAG" in steamgptk-v[0-9]*) ;; *) echo 'Use a steamgptk-v version tag'; exit 1 ;; esac
-          git check-ref-format "refs/tags/$RELEASE_TAG"
-          existing_tag="$(git ls-remote --tags origin "refs/tags/$RELEASE_TAG")"
-          [ -z "$existing_tag" ] || { echo 'Choose a new tag: this tag already exists'; exit 1; }
-          printf '%s\n' "$RELEASE_NOTES" > release/notes.txt
-          gh release create "$RELEASE_TAG" \
-            release/SteamGPTK.zip release/SteamGPTK.zip.sha256 \
-            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --draft --title "$RELEASE_TAG" --notes-file release/notes.txt
+          args=(release/SteamGPTK.zip release/SteamGPTK.zip.sha256
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
+            --title "SteamGPTK ${RELEASE_TAG#steamgptk-v}" --notes-file release/notes.txt)
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            args+=(--verify-tag --latest)
+          else
+            args+=(--draft)
+          fi
+          gh release create "$RELEASE_TAG" "${args[@]}"

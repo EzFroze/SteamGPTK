@@ -43,7 +43,21 @@ Enable Actions for the fork if GitHub prompts. The app workflow builds `SteamGPT
 
 The workflows use GitHub-hosted Apple Silicon runners. They do not require the original author's signing key, Apple developer credentials, a CrossOver license, or a Sparkle update secret.
 
-## Draft release
+## Publish a release from the terminal
+
+Update the app version in `app/Info.plist` and `scripts/build-free-ui.sh`, and add the matching `docs/releases/X.Y.Z.md` notes. Commit the release candidate, then push a new version tag:
+
+```bash
+git push origin codex/wine-gptk-ui
+git tag -a steamgptk-v0.1.0 -m "SteamGPTK 0.1.0"
+git push origin steamgptk-v0.1.0
+```
+
+A `steamgptk-vX.Y.Z` tag runs the full build and lint workflows, verifies the app version, source revision and checksum, then **publishes** the release with `SteamGPTK.zip` and `SteamGPTK.zip.sha256`. Push a release tag only when publication is intended. This works through SSH and does not require changing the default branch, a local API token or browser access. Existing releases are not replaced.
+
+If a job fails, inspect its logs before creating another release. Never move a published version tag to different source.
+
+## Manual draft release
 
 After this branch is the default branch and CI is green:
 

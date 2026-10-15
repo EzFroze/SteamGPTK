@@ -1,6 +1,6 @@
 # SteamGPTK changes
 
-## Initial Wine/GPTK fork — 2026-10-15
+## 0.1.0 — 2026-10-15
 
 Based on standalone NotProton commit `5b8d18683b619b66390be8cbcffc1fbf47e45971`.
 
@@ -15,5 +15,6 @@ Based on standalone NotProton commit `5b8d18683b619b66390be8cbcffc1fbf47e45971`.
 - Keep native macOS game launches native unless the user selects a compatibility tool.
 - Provide reproducible build/test scripts, installation guides and fork-specific build/release workflows.
 - Disable upstream application updates in this fork and retain GPL/third-party notices.
+- Publish versioned app archives and SHA-256 checksums from GitHub Actions after build, test and lint checks.
 
 Compatibility is experimental. Local validation covered 372 Swift tests, including a disposable full Wine installation, GPTK 4.0 beta 3 import, repair and prefix creation. GitHub Actions results are reported separately after publication.

@@ -14,9 +14,9 @@ SteamGPTK запускает Windows-игры через обычный Steam д
 
 ## Получить приложение
 
-Когда появится релиз, скачай `SteamGPTK.zip` из [Releases этого форка](https://github.com/EzFroze/SteamGPTK/releases), распакуй и открой `SteamGPTK.app`.
+Скачай `SteamGPTK.zip` из [Releases этого форка](https://github.com/EzFroze/SteamGPTK/releases), распакуй и открой `SteamGPTK.app`. Для проверки скачай также `SteamGPTK.zip.sha256` и выполни в папке с обоими файлами `shasum -a 256 -c SteamGPTK.zip.sha256`.
 
-Пока релиза нет, приложение можно собрать из исходников. Потребуются Command Line Tools (`xcode-select --install`) или Xcode со Swift 6.2+, а также CMake. Если Homebrew уже установлен, подойдёт `brew install cmake`.
+Приложение также можно собрать из исходников. Потребуются Command Line Tools (`xcode-select --install`) или Xcode со Swift 6.2+, а также CMake. Если Homebrew уже установлен, подойдёт `brew install cmake`.
 
 ```bash
 git clone --branch codex/wine-gptk-ui --single-branch https://github.com/EzFroze/SteamGPTK.git
