@@ -1,5 +1,10 @@
 # SteamGPTK changes
 
+## 0.1.1 — 2026-10-15
+
+- Fix release verification for annotated Git tags checked out by GitHub Actions.
+- First downloadable app release; the 0.1.0 tag passed build/tests but was not published because release verification stopped.
+
 ## 0.1.0 — 2026-10-15
 
 Based on standalone NotProton commit `5b8d18683b619b66390be8cbcffc1fbf47e45971`.
