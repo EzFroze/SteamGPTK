@@ -3,7 +3,7 @@
 # ==============================================================================
 # launch-game.sh
 #
-# Helper script to launch a Steam Windows game via NotProton with GPTK 4.
+# Helper script to launch a Steam Windows game via SteamGPTK with GPTK 4.
 #
 # Usage:
 #   ./scripts/launch-game.sh <AppID> [options]
@@ -35,7 +35,7 @@ usage() {
     echo "Arguments:"
     echo "  AppID     Steam Application ID (numeric)"
     echo "  --hud     Enable Apple Metal Performance HUD"
-    echo "  --tail    Follow the NotProton execution log"
+    echo "  --tail    Follow the SteamGPTK execution log"
     exit 1
 }
 
@@ -78,8 +78,8 @@ if ! pgrep -x "steam_osx" >/dev/null 2>&1; then
     sleep 5
 fi
 
-LOG_FILE="$HOME/Library/Application Support/Steam/steamapps/compatdata/$APPID/notproton-run.log"
-HUD_FILE="$HOME/Library/Application Support/Steam/steamapps/compatdata/$APPID/notproton-hud"
+LOG_FILE="$HOME/Library/Application Support/Steam/steamapps/compatdata/$APPID/steamgptk-run.log"
+HUD_FILE="$HOME/Library/Application Support/Steam/steamapps/compatdata/$APPID/steamgptk-hud"
 
 # Set HUD if requested
 if [ "$ENABLE_HUD" -eq 1 ]; then
@@ -90,7 +90,7 @@ else
     rm -f "$HUD_FILE" 2>/dev/null || true
 fi
 
-printf "${BLUE}${BOLD}==>${NC} Launching Steam AppID ${BOLD}%s${NC} via NotProton...\n" "$APPID"
+printf "${BLUE}${BOLD}==>${NC} Launching Steam AppID ${BOLD}%s${NC} via SteamGPTK...\n" "$APPID"
 open "steam://rungameid/$APPID"
 
 if [ "$TAIL_LOG" -eq 1 ]; then

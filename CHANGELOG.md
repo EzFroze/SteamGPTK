@@ -1,3 +1,12 @@
+# SteamGPTK 0.2.0 — 2026-10-15
+
+- Enable D9VK automatically for DirectX 8/9, including 32-bit games.
+- Correct relocated Vulkan driver manifests during installation and repair.
+- Respect an explicit WineD3D selection.
+- Rename the app, Swift target, native module, logs and build artifacts to SteamGPTK.
+- Preserve existing runtime/GPTK, backups, game profiles and Steam tool selections during upgrade.
+- Retain upstream attribution and component licenses.
+
 # SteamGPTK changes
 
 ## 0.1.2 — 2026-10-15
@@ -13,7 +22,7 @@
 
 ## 0.1.0 — 2026-10-15
 
-Based on standalone NotProton commit `5b8d18683b619b66390be8cbcffc1fbf47e45971`.
+Based on standalone SteamGPTK commit `5b8d18683b619b66390be8cbcffc1fbf47e45971`.
 
 - Use Sikarugir Wine 11 without a commercial CrossOver installation or license.
 - Import GPTK 4 from a user-selected Apple DMG; include no Apple renderer in source or app archives.

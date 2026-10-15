@@ -104,7 +104,7 @@ static int8_t allocated_from_steamclient_dll( void *ptr )
 
 static void *get_mem_from_steamclient_dll(size_t size, unsigned int version, void *vtbl)
 {
-    /* When lsteamclient is loaded as steamclient.dll (standalone NotProton),
+    /* When lsteamclient is loaded as steamclient.dll (standalone SteamGPTK),
      * carving memory from .data overwrites its own critical global variables
      * (e.g. steamclient_cs, steamclient_interfaces list), causing crashes in
      * create_win_interface. Returning NULL safely falls back to direct vtables

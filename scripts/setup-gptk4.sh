@@ -4,11 +4,11 @@
 # setup-gptk4.sh
 # 
 # Standalone, reproducible setup script for running Windows Steam games via
-# NotProton using Wine-Crossover (WOW64) and Apple Game Porting Toolkit 4 (Beta 2).
+# SteamGPTK using Wine-Crossover (WOW64) and Apple Game Porting Toolkit 4 (Beta 2).
 #
 # This script is completely standalone and agnostic to third-party launchers
 # (Heroic, Whisky, etc.). It resolves the Wine runtime and integrates
-# Apple's Game Porting Toolkit 4 directly into NotProton.
+# Apple's Game Porting Toolkit 4 directly into SteamGPTK.
 #
 # Requirements:
 #   - macOS Sonoma 14+ / Sequoia 15+ on Apple Silicon (arm64)
@@ -41,13 +41,13 @@ error() { printf "${RED}${BOLD}  ✗ %s${NC}\n" "$*"; }
 fatal() { error "$*"; exit 1; }
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SUPPORT_DIR="$HOME/Library/Application Support/notproton"
+SUPPORT_DIR="$HOME/Library/Application Support/steamgptk"
 RUNNERS_DIR="$SUPPORT_DIR/runners"
 BRIDGE_DIR="$SUPPORT_DIR/bridge"
 DOWNLOADS_DIR="$SUPPORT_DIR/downloads"
 RUNNER_TARGET="$RUNNERS_DIR/gptk-4-beta2"
 STEAM_APP="/Applications/Steam.app"
-STEAM_COMPAT_DIR="$HOME/Library/Application Support/Steam/compatibilitytools.d/notproton"
+STEAM_COMPAT_DIR="$HOME/Library/Application Support/Steam/compatibilitytools.d/steamgptk-proton"
 
 FORCE_REINSTALL=0
 for arg in "$@"; do
@@ -65,7 +65,7 @@ for arg in "$@"; do
     esac
 done
 
-info "Setting up NotProton with Wine-Crossover-Latest and GPTK 4 (Beta 2)..."
+info "Setting up SteamGPTK with Wine-Crossover-Latest and GPTK 4 (Beta 2)..."
 
 # ------------------------------------------------------------------------------
 # 1. System & Prerequisite Checks
@@ -74,7 +74,7 @@ info "Checking prerequisites..."
 
 ARCH="$(uname -m)"
 if [ "$ARCH" != "arm64" ]; then
-    fatal "NotProton with GPTK 4 requires an Apple Silicon Mac (arm64). Detected: $ARCH"
+    fatal "SteamGPTK with GPTK 4 requires an Apple Silicon Mac (arm64). Detected: $ARCH"
 fi
 ok "Architecture: Apple Silicon ($ARCH)"
 
@@ -340,9 +340,9 @@ ln -sfn "gptk-4-beta2" "$RUNNERS_DIR/current"
 ok "Runner assembled: $RUNNERS_DIR/current -> gptk-4-beta2"
 
 # ------------------------------------------------------------------------------
-# 4. Build NotProton Dylib & Helpers
+# 4. Build SteamGPTK Dylib & Helpers
 # ------------------------------------------------------------------------------
-info "Building NotProton core binaries..."
+info "Building SteamGPTK core binaries..."
 
 cd "$REPO_ROOT"
 
@@ -352,7 +352,7 @@ if [ ! -f "build/dobby/libdobby.a" ]; then
 fi
 
 make all overlay-shim helpers-install
-ok "Built notproton.dylib, overlay-shim.dylib, and helpers"
+ok "Built steamgptk.dylib, overlay-shim.dylib, and helpers"
 
 # ------------------------------------------------------------------------------
 # 5. Fetch and Stage Valve Bridge Components (64-bit and 32-bit)
@@ -371,7 +371,7 @@ if [ -f "$BRIDGE_DIR/x86_64-windows/lsteamclient.dll" ]; then
 fi
 if [ -f "$BRIDGE_DIR/i386-windows/lsteamclient.dll" ]; then
     # Patch lsteamclient.dll to return NULL in get_mem_from_steamclient_dll.
-    # When lsteamclient is loaded as steamclient.dll (NotProton standalone),
+    # When lsteamclient is loaded as steamclient.dll (SteamGPTK standalone),
     # carving memory from .data overwrites internal globals (steamclient_cs, interfaces list),
     # causing an access violation in create_win_interface. Returning NULL safely falls
     # back to direct vtables, matching 64-bit Proton behavior.
@@ -511,15 +511,15 @@ info "Patching native Steam client..."
 
 PLIST="$STEAM_APP/Contents/Info.plist"
 BACKUP_DIR="$SUPPORT_DIR/backups"
-STEAM_DYLIB="$STEAM_APP/Contents/MacOS/notproton.dylib"
+STEAM_DYLIB="$STEAM_APP/Contents/MacOS/steamgptk.dylib"
 
-if [ ! -f "$BACKUP_DIR/Info.plist.before-notproton" ]; then
-    cp -p "$PLIST" "$BACKUP_DIR/Info.plist.before-notproton"
-    ok "Backed up original Info.plist to $BACKUP_DIR/Info.plist.before-notproton"
+if [ ! -f "$BACKUP_DIR/Info.plist.before-steamgptk" ]; then
+    cp -p "$PLIST" "$BACKUP_DIR/Info.plist.before-steamgptk"
+    ok "Backed up original Info.plist to $BACKUP_DIR/Info.plist.before-steamgptk"
 fi
 
 # Deploy dylib into Steam bundle
-cp -f "$REPO_ROOT/out/notproton.dylib" "$STEAM_DYLIB"
+cp -f "$REPO_ROOT/out/steamgptk.dylib" "$STEAM_DYLIB"
 
 # Configure DYLD_INSERT_LIBRARIES in Steam Info.plist
 /usr/libexec/PlistBuddy -c "Add :LSEnvironment dict" "$PLIST" 2>/dev/null || true
@@ -546,7 +546,7 @@ cat > "$STEAM_COMPAT_DIR/compatibilitytool.vdf" << 'EOF'
 {
   "compat_tools"
   {
-    "notproton"
+    "steamgptk-proton"
     {
       "install_path" "."
       "display_name" "Game Porting Toolkit 4"
@@ -574,8 +574,8 @@ ok "Steam compatibility tool registered as 'Game Porting Toolkit 4'"
 # ------------------------------------------------------------------------------
 info "Verifying setup..."
 
-TEST_PATH="$(STEAM_COMPAT_DATA_PATH="/tmp/notproton_test" "$STEAM_COMPAT_DIR/run" getcompatpath 2>/dev/null || true)"
-if [ "$TEST_PATH" = "/tmp/notproton_test" ]; then
+TEST_PATH="$(STEAM_COMPAT_DATA_PATH="/tmp/steamgptk_test" "$STEAM_COMPAT_DIR/run" getcompatpath 2>/dev/null || true)"
+if [ "$TEST_PATH" = "/tmp/steamgptk_test" ]; then
     ok "Compat run script responds correctly"
 else
     warn "Compat run script returned unexpected test path: $TEST_PATH"
@@ -583,7 +583,7 @@ fi
 
 echo ""
 printf '%b%b==============================================================================%b\n' "$GREEN" "$BOLD" "$NC"
-printf '%b%b  NotProton with GPTK 4 (Beta 2) successfully installed!%b\n' "$GREEN" "$BOLD" "$NC"
+printf '%b%b  SteamGPTK with GPTK 4 (Beta 2) successfully installed!%b\n' "$GREEN" "$BOLD" "$NC"
 printf '%b%b==============================================================================%b\n' "$GREEN" "$BOLD" "$NC"
 echo ""
 echo "How to run games:"

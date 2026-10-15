@@ -1,5 +1,5 @@
-#ifndef NOTPROTON_CORE_MACHO_H
-#define NOTPROTON_CORE_MACHO_H
+#ifndef STEAMGPTK_CORE_MACHO_H
+#define STEAMGPTK_CORE_MACHO_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -21,4 +21,4 @@ int np_get_section_containing(const struct mach_header_64 *mh, intptr_t slide,
 int np_function_bounds(const struct mach_header_64 *mh, intptr_t slide,
                        uintptr_t addr, uintptr_t *out_start, uintptr_t *out_end);
 
-#endif // NOTPROTON_CORE_MACHO_H
+#endif // STEAMGPTK_CORE_MACHO_H

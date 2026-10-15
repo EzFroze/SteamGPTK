@@ -14,5 +14,5 @@ steamgptk_swift_options() {
     # Consumed by the build/test scripts that source this helper.
     # shellcheck disable=SC2034
     STEAMGPTK_SWIFT_ARGS=(--package-path app -c debug --arch arm64 --sdk "$sdk_path"
-        --scratch-path "$swift_cache" -Xswiftc -DNOTPROTON_SDK26)
+        --scratch-path "$swift_cache" -Xswiftc -DSTEAMGPTK_SDK26)
 }

@@ -7,7 +7,7 @@ CFLAGS   := -arch $(ARCH) -mmacosx-version-min=$(MIN_VER) \
             -fPIC -MMD -MP \
             -Idylib -Ivendor -Ivendor/dobby/include
 LDFLAGS  := -arch $(ARCH) -mmacosx-version-min=$(MIN_VER) \
-            -dynamiclib -install_name @rpath/notproton.dylib
+            -dynamiclib -install_name @rpath/steamgptk.dylib
 
 FRAMEWORKS := -framework CoreFoundation
 
@@ -48,9 +48,9 @@ GENERATED_DIR := $(OUT_DIR)/generated
 RUN_SCRIPT_H  := $(GENERATED_DIR)/compat_run.h
 CFLAGS += -I$(GENERATED_DIR)
 
-ARM64_DYLIB := $(OUT_DIR)/notproton.arm64.dylib
-X86_STUB    := $(OUT_DIR)/notproton.x86_64.dylib
-TARGET      := $(OUT_DIR)/notproton.dylib
+ARM64_DYLIB := $(OUT_DIR)/steamgptk.arm64.dylib
+X86_STUB    := $(OUT_DIR)/steamgptk.x86_64.dylib
+TARGET      := $(OUT_DIR)/steamgptk.dylib
 
 OBJS := $(patsubst %.c,$(OUT_DIR)/%.o,$(SRCS))
 DEPS := $(OBJS:.o=.d)
@@ -62,7 +62,7 @@ DEPS := $(OBJS:.o=.d)
         appinfo helpers-install ntdll-resolve bridge runcheck compatcheck \
         compatsvc-check scriptcheck profilecheck
 
-APP_PAYLOAD := app/Sources/NotProtonApp/Resources/payload
+APP_PAYLOAD := app/Sources/SteamGPTKApp/Resources/payload
 
 all: $(TARGET) $(APP_PAYLOAD)
 
@@ -90,7 +90,7 @@ profilecheck:
 
 # runcheck owns compat_run.sh, whose warnings wait for a change that can move
 # the embedded __text baseline
-SCRIPTS := $(shell git ls-files '*.sh' 2>/dev/null | grep -v -e '^dylib/feats/compat_run\.sh$$' -e '^app/Sources/NotProtonApp/Resources/compat_run\.sh$$')
+SCRIPTS := $(shell git ls-files '*.sh' 2>/dev/null | grep -v -e '^dylib/feats/compat_run\.sh$$' -e '^app/Sources/SteamGPTKApp/Resources/compat_run\.sh$$')
 
 scriptcheck:
 	@if ! command -v shellcheck >/dev/null 2>&1; then \
@@ -289,7 +289,7 @@ $(ARM64_DYLIB): $(OBJS)
 $(X86_STUB): dylib/stub_x86_64.c
 	@mkdir -p $(dir $@)
 	$(CC) -arch x86_64 -mmacosx-version-min=$(MIN_VER) \
-		-dynamiclib -install_name @rpath/notproton.dylib \
+		-dynamiclib -install_name @rpath/steamgptk.dylib \
 		-o $@ $<
 
 $(TARGET): $(ARM64_DYLIB) $(X86_STUB)
@@ -307,7 +307,7 @@ $(RUN_SCRIPT_H): dylib/feats/compat_run.sh dylib/embed_script.py
 
 $(OUT_DIR)/dylib/feats/compat.o: $(RUN_SCRIPT_H)
 
-SUPPORT_DIR        := $(HOME)/Library/Application Support/notproton
+SUPPORT_DIR        := $(HOME)/Library/Application Support/steamgptk
 OVERLAY_SHIM_SRC   := overlay-shim/overlay_shim.m
 OVERLAY_SHIM_ARM   := $(OUT_DIR)/overlay-shim.arm64.dylib
 OVERLAY_SHIM_X86   := $(OUT_DIR)/overlay-shim.x86_64.dylib
@@ -349,7 +349,7 @@ overlay-shim-tests: $(OVERLAY_SHIM)
 		for a in arm64 x86_64; do \
 			$(CC) -arch $$a $(OVERLAY_SHIM_TEST_FLAGS) -o $(OUT_DIR)/$$t.$$a \
 				$(OVERLAY_SHIM_TESTS)/$$t.m || exit 1; \
-			out=$$(NOTPROTON_OVERLAY_SHIM=$(OVERLAY_SHIM) $(OUT_DIR)/$$t.$$a 2>&1); rc=$$?; \
+			out=$$(STEAMGPTK_OVERLAY_SHIM=$(OVERLAY_SHIM) $(OUT_DIR)/$$t.$$a 2>&1); rc=$$?; \
 			case "$$rc" in \
 			0) ran=$$((ran+1)); echo "$$out" | sed "s/^/  $$t.$$a /" ;; \
 			3|126) skipped=$$((skipped+1)); \
@@ -412,8 +412,8 @@ dobby:
 	$(MAKE) -C $(DOBBY_DIR) -j$(shell sysctl -n hw.ncpu)
 
 STEAM_APP    := /Applications/Steam.app
-DEPLOY_DST   := $(STEAM_APP)/Contents/MacOS/notproton.dylib
-INSTALL_DST  := $(SUPPORT_DIR)/notproton.dylib
+DEPLOY_DST   := $(STEAM_APP)/Contents/MacOS/steamgptk.dylib
+INSTALL_DST  := $(SUPPORT_DIR)/steamgptk.dylib
 
 dylib-install: $(TARGET)
 	$(call install_atomically,$(TARGET),$(INSTALL_DST))
@@ -424,7 +424,7 @@ sigdb-install:
 	cp -f signatures/macos.arm64/*.json "$(SUPPORT_DIR)/signatures/macos.arm64/"
 	@echo "==> Installed: $(SUPPORT_DIR)/signatures/macos.arm64"
 
-LAUNCHABLE_BUNDLES := $(HOME)/Desktop/NotProton.app /Applications/NotProton.app
+LAUNCHABLE_BUNDLES := $(HOME)/Desktop/SteamGPTK.app /Applications/SteamGPTK.app
 
 deploy: $(TARGET) dylib-install sigdb-install helpers-install
 	@if [ ! -d "$(STEAM_APP)" ]; then \
@@ -432,10 +432,10 @@ deploy: $(TARGET) dylib-install sigdb-install helpers-install
 	$(call install_atomically,$(TARGET),$(DEPLOY_DST))
 	@echo "==> Deployed: $(DEPLOY_DST) (restart Steam to load)"
 	@for b in $(LAUNCHABLE_BUNDLES); do \
-		p=$$(find "$$b" -name notproton.dylib -type f 2>/dev/null | head -1); \
+		p=$$(find "$$b" -name steamgptk.dylib -type f 2>/dev/null | head -1); \
 		[ -n "$$p" ] || continue; \
 		cmp -s "$$p" "$(DEPLOY_DST)" && continue; \
-		echo "==> warning: $$b carries a different notproton.dylib"; \
+		echo "==> warning: $$b carries a different steamgptk.dylib"; \
 		echo "==> warning: launching it reverts this deploy, so rebuild it with 'make app'"; \
 	done
 
@@ -462,7 +462,7 @@ bridge:
 app-payload: $(TARGET) $(OVERLAY_SHIM) $(ICONMAKER) $(APPINFO)
 	@mkdir -p "$(APP_PAYLOAD)/signatures/macos.arm64"
 	@mkdir -p "$(APP_PAYLOAD)/bridge"
-	cp -f $(TARGET) "$(APP_PAYLOAD)/notproton.dylib"
+	cp -f $(TARGET) "$(APP_PAYLOAD)/steamgptk.dylib"
 	cp -f $(OVERLAY_SHIM) "$(APP_PAYLOAD)/overlay-shim.dylib"
 	cp -f $(ICONMAKER) "$(APP_PAYLOAD)/iconmaker"
 	cp -f $(APPINFO) "$(APP_PAYLOAD)/appinfo"
@@ -475,15 +475,15 @@ app-payload: $(TARGET) $(OVERLAY_SHIM) $(ICONMAKER) $(APPINFO)
 	done
 	@echo "==> Staged app payload in $(APP_PAYLOAD)"
 
-APP_BUNDLE  := $(OUT_DIR)/NotProton.app
-APP_BUNDLE_PAYLOAD := $(APP_BUNDLE)/Contents/Resources/NotProtonApp_NotProtonApp.bundle/Contents/Resources/payload
-APP_ZIP     := $(OUT_DIR)/NotProton.zip
-APP_VERSION := $(shell sed -n 's/^\#define NOTPROTON_VERSION "\(.*\)"/\1/p' dylib/version.h)
+APP_BUNDLE  := $(OUT_DIR)/SteamGPTK.app
+APP_BUNDLE_PAYLOAD := $(APP_BUNDLE)/Contents/Resources/SteamGPTKApp_SteamGPTKApp.bundle/Contents/Resources/payload
+APP_ZIP     := $(OUT_DIR)/SteamGPTK.zip
+APP_VERSION := $(shell sed -n 's/^\#define STEAMGPTK_VERSION "\(.*\)"/\1/p' dylib/version.h)
 
 APP_SIGN_ID ?= -
 
 ICONGEN  := $(OUT_DIR)/icongen
-ICON_DOC := $(OUT_DIR)/NotProton.icon
+ICON_DOC := $(OUT_DIR)/SteamGPTK.icon
 ICON_DIR := $(OUT_DIR)/icon
 ICON_CAR := $(ICON_DIR)/Assets.car
 
@@ -499,7 +499,7 @@ $(ICON_CAR): $(ICONGEN)
 	$(ICONGEN) "$(ICON_DOC)"
 	@mkdir -p "$(ICON_DIR)"
 	xcrun actool "$(ICON_DOC)" --compile "$(ICON_DIR)" --platform macosx \
-		--minimum-deployment-target 26.0 --app-icon NotProton \
+		--minimum-deployment-target 26.0 --app-icon SteamGPTK \
 		--output-partial-info-plist "$(ICON_DIR)/partial.plist" >/dev/null
 	@echo "==> Built $@"
 
@@ -512,16 +512,16 @@ app: app-payload $(ICON_CAR)
 		"Set :CFBundleShortVersionString $(APP_VERSION)" -c \
 		"Set :CFBundleVersion $(APP_VERSION)" \
 		"$(APP_BUNDLE)/Contents/Info.plist"
-	cp "$$(swift build --package-path app -c release --show-bin-path)/NotProtonApp" \
-		"$(APP_BUNDLE)/Contents/MacOS/NotProtonApp"
+	cp "$$(swift build --package-path app -c release --show-bin-path)/SteamGPTKApp" \
+		"$(APP_BUNDLE)/Contents/MacOS/SteamGPTKApp"
 	@mkdir -p "$(APP_BUNDLE)/Contents/Frameworks"
 	ditto "$$(swift build --package-path app -c release --show-bin-path)/Sparkle.framework" \
 		"$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework"
 	install_name_tool -add_rpath @executable_path/../Frameworks \
-		"$(APP_BUNDLE)/Contents/MacOS/NotProtonApp"
-	cp -R "$$(swift build --package-path app -c release --show-bin-path)/NotProtonApp_NotProtonApp.bundle" \
+		"$(APP_BUNDLE)/Contents/MacOS/SteamGPTKApp"
+	cp -R "$$(swift build --package-path app -c release --show-bin-path)/SteamGPTKApp_SteamGPTKApp.bundle" \
 		"$(APP_BUNDLE)/Contents/Resources/"
-	cp "$(ICON_DIR)/Assets.car" "$(ICON_DIR)/NotProton.icns" \
+	cp "$(ICON_DIR)/Assets.car" "$(ICON_DIR)/SteamGPTK.icns" \
 		"$(APP_BUNDLE)/Contents/Resources/"
 	@missing=$$(cd "$(APP_PAYLOAD)" && find . -type f ! -name '.DS_Store' | sed 's|^\./||' \
 		| while read -r rel; do \

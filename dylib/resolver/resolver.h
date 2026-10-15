@@ -1,6 +1,6 @@
 // Signature resolver
-#ifndef NOTPROTON_RESOLVER_RESOLVER_H
-#define NOTPROTON_RESOLVER_RESOLVER_H
+#ifndef STEAMGPTK_RESOLVER_RESOLVER_H
+#define STEAMGPTK_RESOLVER_RESOLVER_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -34,4 +34,4 @@ int np_required_for_module(const np_sigdb_t *sigdb, const char *module);
 uintptr_t np_lookup_address(const np_resolve_result_t *result, const char *name);
 void      np_free_resolution(np_resolve_result_t *result);
 
-#endif // NOTPROTON_RESOLVER_RESOLVER_H
+#endif // STEAMGPTK_RESOLVER_RESOLVER_H

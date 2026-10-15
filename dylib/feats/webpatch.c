@@ -116,8 +116,10 @@ static int out_expand(np_out_t *o, const char *replace, const np_cap_t *caps) {
 #define NP_CX_OPTIONS_BODY(ARG, RT, BARREL) \
     ARG "=>{" \
     "const t=" ARG ".details,o=t.strLaunchOptions||\"\"," \
-    "g=k=>{const p=o.split(\" \").find(x=>x.indexOf(k+\"=\")===0);return p?p.slice(k.length+1):\"\"}," \
-    "s=ps=>{const a=o.split(\" \").filter(x=>x&&!ps.some(p=>x.indexOf(p[0]+\"=\")===0));" \
+    "L=k=>k.indexOf(\"STEAMGPTK_\")===0?\"NOTPROTON_\"+k.slice(10):k," \
+    "g=k=>{for(const n of [k,L(k)]){const p=o.split(\" \").find(x=>x.indexOf(n+\"=\")===0);" \
+    "if(p)return p.slice(n.length+1)}return\"\"}," \
+    "s=ps=>{const a=o.split(\" \").filter(x=>x&&!ps.some(p=>[p[0],L(p[0])].some(k=>x.indexOf(k+\"=\")===0)));" \
     "ps.forEach(p=>{if(p[1])a.unshift(p[0]+\"=\"+p[1])});" \
     "SteamClient.Apps.SetAppLaunchOptions(t.unAppID,a.join(\" \"))}," \
     "T=(ks,l,on,off)=>(0," RT ".jsx)(" BARREL ".Yh,{className:\"MSCXRow\",label:l," \
@@ -155,7 +157,7 @@ static int out_expand(np_out_t *o, const char *replace, const np_cap_t *caps) {
     "\"dxmt\"===b&&T([\"DXMT_ENABLE_NVEXT\"],\"DLSS\",\"1\")," \
     "T([\"ROSETTA_ADVERTISE_AVX\"],\"Advertise AVX2 to Rosetta\",\"1\",\"0\")," \
     "T([\"WINEMSYNC\"],\"MSync\",\"1\",\"0\")," \
-    "T([\"NOTPROTON_RETINA\"],\"High Resolution\",\"1\",\"0\")" \
+    "T([\"STEAMGPTK_RETINA\"],\"High Resolution\",\"1\",\"0\")" \
     "]},\"gfx\")," \
     "dx&&(0," RT ".jsx)(" BARREL ".XY," \
     "{label:\"MetalFX Upscaling (Samples from the resolution the game is set to)\"," \

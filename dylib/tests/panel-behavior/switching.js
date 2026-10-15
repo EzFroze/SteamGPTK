@@ -38,9 +38,9 @@ const CASES = [
     gone: D3DM, kept: NVEXT },
   // Stripping arguments by name is the kind of thing that takes neighbours with it.
   { to: 'dxvk',
-    from: '-novid MTL_HUD_ENABLED=1 WINEMSYNC=1 NOTPROTON_RETINA=1 ' + UPSCALED + ' %command%',
+    from: '-novid MTL_HUD_ENABLED=1 WINEMSYNC=1 STEAMGPTK_RETINA=1 ' + UPSCALED + ' %command%',
     gone: DXMT,
-    kept: ['-novid', 'MTL_HUD_ENABLED=1', 'WINEMSYNC=1', 'NOTPROTON_RETINA=1', '%command%'] },
+    kept: ['-novid', 'MTL_HUD_ENABLED=1', 'WINEMSYNC=1', 'STEAMGPTK_RETINA=1', '%command%'] },
 ];
 
 let failed = 0;
@@ -68,6 +68,18 @@ for (const form of Object.keys(FORMS)) {
     (x.props.rgOptions || []).some(o => o.data === 'dxmt')).props.onChange({ data: 'dxvk' });
   const opts = written[written.length - 1].opts;
   t.ok(opts.trim().endsWith('%command%'), `%command% stays last (${opts})`);
+  for (const [oldValue, selected] of [['0', true], ['1', false]]) {
+    written.length = 0;
+    const migrated = walk(P({ details: details(`-novid NOTPROTON_RETINA=${oldValue} %command%`) }));
+    const resolution = migrated.find(x => x.type === 'Toggle' && x.props.label === 'High Resolution');
+    t.ok(resolution.props.checked === (oldValue === '1'), 'High Resolution reads the legacy setting');
+    resolution.props.onChange(selected);
+    const updated = written[written.length - 1].opts;
+    t.ok(updated.includes(`STEAMGPTK_RETINA=${selected ? '1' : '0'}`)
+         && !updated.includes('NOTPROTON_RETINA=')
+         && updated.includes('-novid') && updated.endsWith('%command%'),
+         'changing High Resolution replaces the legacy token and keeps game arguments');
+  }
   failed += t.failed;
 }
 console.log(failed ? `\n${failed} failure(s)` : '\nno stale arguments, nothing lost');

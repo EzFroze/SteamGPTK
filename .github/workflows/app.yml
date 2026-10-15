@@ -25,6 +25,7 @@ jobs:
         run: |
           swift --version
           cmake --version
+          node --version
           xcrun --sdk macosx --show-sdk-version
 
       - name: Cache pinned build dependencies
@@ -32,7 +33,7 @@ jobs:
         with:
           path: |
             build/dobby
-            ~/Library/Caches/notproton-free/downloads
+            ~/Library/Caches/steamgptk-free/downloads
             .build/free-ui
           key: steamgptk-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-free-ui.sh', 'app/Package.swift', 'Makefile') }}
 
@@ -43,6 +44,7 @@ jobs:
         run: |
           make -s sigcheck
           make -s webpatch-fixtures
+          make -s panel-behavior
           make -s compatcheck
           make -s compatsvc-check
           make -s profilecheck

@@ -55,7 +55,7 @@ int np_log_first_hit(const void *anchor, unsigned long tag) {
 }
 
 void np_log_init(void) {
-    const char *want = getenv("NOTPROTON_LOG_LEVEL");
+    const char *want = getenv("STEAMGPTK_LOG_LEVEL");
     if (want && want[0]) {
         int parsed = atoi(want);
         if (parsed >= NP_LVL_ERR && parsed <= NP_LVL_DBG)
@@ -73,7 +73,7 @@ void np_log_init(void) {
     char logpath[512];
     np_support_path(folder, sizeof(folder), home, NULL);
     mkdir(folder, 0755);
-    snprintf(logpath, sizeof(logpath), "%s/notproton.log", folder);
+    snprintf(logpath, sizeof(logpath), "%s/steamgptk.log", folder);
 
     struct stat info;
     int oversize = (stat(logpath, &info) == 0 && info.st_size > NP_LOG_MAX_BYTES);

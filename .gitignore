@@ -21,7 +21,7 @@ xcuserdata/
 *.xcuserstate
 DerivedData/
 
-app/Sources/NotProtonApp/Resources/payload/
+app/Sources/SteamGPTKApp/Resources/payload/
 __pycache__/
 
 # User-supplied GPTK images, downloaded runtimes and local credentials

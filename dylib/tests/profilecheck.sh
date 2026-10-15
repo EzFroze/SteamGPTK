@@ -62,7 +62,7 @@ check test "$(cat "$cloud/AppData/LocalLow/Game/local.sav" 2>/dev/null || true)"
 check test "$(cat "$native/AppData/LocalLow/Game/cloud.sav" 2>/dev/null || true)" = downloaded
 check test "$(cat "$cloud/Documents/Game/slot.sav" 2>/dev/null || true)" = document
 backups=0
-for backup in "$WINEPREFIX/drive_c/users/$task_user".notproton-backup.*; do
+for backup in "$WINEPREFIX/drive_c/users/$task_user".steamgptk-backup.*; do
   [ -d "$backup" ] || continue
   backups=$((backups + 1))
   check test "$(cat "$backup/AppData/LocalLow/Game/local.sav")" = local

@@ -1,6 +1,6 @@
 // Hex helpers
-#ifndef NOTPROTON_UTIL_HEX_H
-#define NOTPROTON_UTIL_HEX_H
+#ifndef STEAMGPTK_UTIL_HEX_H
+#define STEAMGPTK_UTIL_HEX_H
 
 static inline int np_hex_val(int ch) {
     if (ch >= '0' && ch <= '9')
@@ -11,4 +11,4 @@ static inline int np_hex_val(int ch) {
     return -1;
 }
 
-#endif // NOTPROTON_UTIL_HEX_H
+#endif // STEAMGPTK_UTIL_HEX_H

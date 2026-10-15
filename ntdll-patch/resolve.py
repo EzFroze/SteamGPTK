@@ -627,7 +627,7 @@ def ntdlls(arg):
             continue
         found = []
         for d in archs:
-            for name in ('ntdll.dll.notproton-orig', 'ntdll.dll'):
+            for name in ('ntdll.dll.steamgptk-orig', 'ntdll.dll'):
                 if (d / name).is_file():
                     found.append(str(d / name))
                     break

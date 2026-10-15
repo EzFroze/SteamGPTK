@@ -13,8 +13,8 @@
 // The client maps Cloud's Windows path roots into the compat prefix only when
 // the tool's name contains "proton" so without a match every AutoCloud rule silently
 // skips the app.
-#define TOOL_DIR_NAME "notproton"
-#define TOOL_DISPLAY_NAME "Game Porting Toolkit 4"
+#define TOOL_DIR_NAME "steamgptk-proton"
+#define TOOL_DISPLAY_NAME "SteamGPTK (Wine / GPTK)"
 
 #define COMPAT_MANAGER_ENABLED_OFF  0x7B0
 #define COMPAT_TOOL_STRIDE          0x130

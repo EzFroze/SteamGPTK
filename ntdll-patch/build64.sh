@@ -62,7 +62,7 @@ if [ -n "${APPLY:-}" ]; then
   python3 apply.py "$ntdll" "$APPLY" "$out"
 fi
 
-app_copy="../app/Sources/NotProtonApp/Resources/$out"
+app_copy="../app/Sources/SteamGPTKApp/Resources/$out"
 if [ -f "$app_copy" ] && ! cmp -s "$out" "$app_copy"; then
   echo "warning: $app_copy is stale" >&2
   echo "         cp $out $app_copy" >&2

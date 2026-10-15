@@ -22,7 +22,7 @@ def main() -> int:
     src, dst, symbol = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 
     text = src.read_text(encoding="ascii")
-    guard = f"NOTPROTON_GENERATED_{symbol.upper()}_H"
+    guard = f"STEAMGPTK_GENERATED_{symbol.upper()}_H"
     header = (
         f"// Generated from {src.as_posix()} by dylib/embed_script.py. Edit that file.\n"
         f"#ifndef {guard}\n"

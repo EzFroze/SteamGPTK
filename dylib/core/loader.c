@@ -80,7 +80,7 @@ static int pick_latest_sigdb(const char *dir, char *buf, size_t buf_size) {
 }
 
 static void sigdb_path_for(char *buf, size_t buf_size) {
-    const char *env = getenv("NOTPROTON_SIG");
+    const char *env = getenv("STEAMGPTK_SIG");
     if (env && env[0]) {
         snprintf(buf, buf_size, "%s", env);
         return;
@@ -252,7 +252,7 @@ static void np_init(void) {
     clear_relaunch_markers();
 
     NP_LOG("np_init: loaded into %s (pid %d) version %s",
-           pn, getpid(), NOTPROTON_VERSION);
+           pn, getpid(), STEAMGPTK_VERSION);
 
     np_log_platform_overrides();
     np_compat_export_tools_path();

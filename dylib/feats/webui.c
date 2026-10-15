@@ -299,7 +299,7 @@ static int walk_routes(uintptr_t *elements_out, int *bound_out) {
 void np_webui_dump_routes(void) {
     uintptr_t elements;
     int bound;
-    if (!getenv("NOTPROTON_WEBUI_ROUTES") || !walk_routes(&elements, &bound)) return;
+    if (!getenv("STEAMGPTK_WEBUI_ROUTES") || !walk_routes(&elements, &bound)) return;
 
     int named = 0;
     for (int i = 0; i < bound; i++) {

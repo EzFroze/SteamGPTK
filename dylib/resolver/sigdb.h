@@ -1,6 +1,6 @@
 // Signature database loader
-#ifndef NOTPROTON_RESOLVER_SIGDB_H
-#define NOTPROTON_RESOLVER_SIGDB_H
+#ifndef STEAMGPTK_RESOLVER_SIGDB_H
+#define STEAMGPTK_RESOLVER_SIGDB_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -31,4 +31,4 @@ typedef struct {
 int  np_load_profile(const char *path, np_sigdb_t *out);
 void np_free_profile(np_sigdb_t *p);
 
-#endif // NOTPROTON_RESOLVER_SIGDB_H
+#endif // STEAMGPTK_RESOLVER_SIGDB_H

@@ -1,6 +1,6 @@
 // Logs
-#ifndef NOTPROTON_UTIL_LOG_H
-#define NOTPROTON_UTIL_LOG_H
+#ifndef STEAMGPTK_UTIL_LOG_H
+#define STEAMGPTK_UTIL_LOG_H
 
 #include <stdio.h>
 #include <time.h>
@@ -16,7 +16,7 @@ enum {
     NP_LVL_DBG,
 };
 
-#define NP_LOG_PREFIX "[notproton]"
+#define NP_LOG_PREFIX "[steamgptk]"
 
 #define NP_EMIT(level, tag, fmt, ...) do { \
     if (np_log_level >= (level)) { \
@@ -48,4 +48,4 @@ int np_log_first_hit(const void *anchor, unsigned long tag);
 
 #define NP_LOG_FIRST(fmt, ...) NP_LOG_FIRST_KEY(0, fmt, ##__VA_ARGS__)
 
-#endif // NOTPROTON_UTIL_LOG_H
+#endif // STEAMGPTK_UTIL_LOG_H

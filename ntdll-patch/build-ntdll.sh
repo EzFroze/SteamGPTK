@@ -10,7 +10,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 cd "$here"
 
 CX_ROOT="${CX_ROOT:-/Applications/CrossOver Preview.app/Contents/SharedSupport/CrossOver}"
-BRIDGE_DIR="${BRIDGE_DIR:-$HOME/Library/Application Support/notproton/bridge}"
+BRIDGE_DIR="${BRIDGE_DIR:-$HOME/Library/Application Support/steamgptk/bridge}"
 OUT="${OUT:-$here/build}"
 
 ROSETTA_CLEAN_X86_64=04c7200b6645decb7c2d1ba6b0195abc9af83257072558d11aa72cc067ac3377
@@ -34,12 +34,12 @@ command -v python3 >/dev/null || die "python3 not found"
 OBJCOPY=/opt/homebrew/opt/llvm/bin/llvm-objcopy
 
 flavor_of() {
-    for cand in "$CX_ROOT/lib/wine/aarch64-windows/ntdll.dll.notproton-orig" \
+    for cand in "$CX_ROOT/lib/wine/aarch64-windows/ntdll.dll.steamgptk-orig" \
                 "$CX_ROOT/lib/wine/aarch64-windows/ntdll.dll"; do
         [ -f "$cand" ] || continue
         if [ "$(sha "$cand")" = "$FEX_CLEAN_AARCH64" ]; then echo fex; return 0; fi
     done
-    for cand in "$CX_ROOT/lib/wine/x86_64-windows/ntdll.dll.notproton-orig" \
+    for cand in "$CX_ROOT/lib/wine/x86_64-windows/ntdll.dll.steamgptk-orig" \
                 "$CX_ROOT/lib/wine/x86_64-windows/ntdll.dll"; do
         [ -f "$cand" ] || continue
         if [ "$(sha "$cand")" = "$ROSETTA_CLEAN_X86_64" ]; then echo rosetta; return 0; fi
@@ -70,7 +70,7 @@ echo "==> $FLAVOR flavor, reading $CX_ROOT/lib/wine"
 
 clean_for() {
     arch="$1"; want="$2"
-    for cand in "$CX_ROOT/lib/wine/$arch/ntdll.dll.notproton-orig" \
+    for cand in "$CX_ROOT/lib/wine/$arch/ntdll.dll.steamgptk-orig" \
                 "$CX_ROOT/lib/wine/$arch/ntdll.dll"; do
         [ -f "$cand" ] || continue
         [ "$(sha "$cand")" = "$want" ] || continue

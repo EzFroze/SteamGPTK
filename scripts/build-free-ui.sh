@@ -6,12 +6,12 @@ repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_dir"
 app_path="${1:-$repo_dir/out/SteamGPTK.app}"
 build_dir="${NP_UI_BUILD_DIR:-/private/tmp/steamgptk-ui-build-$(id -u)}"
-cache_dir="$HOME/Library/Caches/notproton-free/downloads"
-archive="$cache_dir/NotProton-v1.0.1.zip"
+cache_dir="$HOME/Library/Caches/steamgptk-free/downloads"
+archive="$cache_dir/SteamGPTK-v0.1.2.zip"
 mkdir -p "$cache_dir"
-archive_sha='1f1f4038ef44e48454c7746fad2b9964f7c82c4ae04af117e474a2d129eda52d'
+archive_sha='e28f8e38fb673928025887243bf08baa53ac430527ca5b1f20f03e64c3f9aff1'
 if [[ ! -f "$archive" ]] || [[ "$(shasum -a 256 "$archive" | cut -d ' ' -f1)" != "$archive_sha" ]]; then
-    curl --fail --location --output "$archive.part" 'https://github.com/NotProtonNot/NotProton/releases/download/v1.0.1/NotProton.zip'
+    curl --fail --location --output "$archive.part" 'https://github.com/EzFroze/SteamGPTK/releases/download/steamgptk-v0.1.2/SteamGPTK.zip'
     [[ "$(shasum -a 256 "$archive.part" | cut -d ' ' -f1)" == "$archive_sha" ]] || { echo 'Bridge archive checksum mismatch' >&2; exit 1; }
     mv "$archive.part" "$archive"
 fi
@@ -31,21 +31,27 @@ fi
 # Stage only bridge files and icons from the pinned release; retain NOTICE licenses.
 python3 - "$archive" <<'PY'
 from pathlib import Path
-import sys, zipfile
-base = 'NotProton.app/Contents/Resources/'
-payload = base + 'NotProtonApp_NotProtonApp.bundle/Contents/Resources/payload/bridge/'
-resources = Path('app/Sources/NotProtonApp/Resources')
+import plistlib, sys, zipfile
+base = 'SteamGPTK.app/Contents/Resources/'
+resources = Path('app/Sources/SteamGPTKApp/Resources')
 (resources / 'payload/bridge').mkdir(parents=True, exist_ok=True)
 Path('out/free-ui-icons').mkdir(parents=True, exist_ok=True)
 with zipfile.ZipFile(sys.argv[1]) as archive:
     for name in ['steam.exe', 'x86_64-windows-lsteamclient.dll', 'i386-windows-lsteamclient.dll',
                  'x86_64-unix-lsteamclient.so', 'aarch64-unix-lsteamclient.so']:
-        (resources / 'payload/bridge' / name).write_bytes(archive.read(payload + name))
-    for name in ['NotProton.icns', 'Assets.car']:
-        Path('out/free-ui-icons', name).write_bytes(archive.read(base + name))
+        candidates = [entry for entry in archive.namelist() if entry.endswith('/payload/bridge/' + name)]
+        if len(candidates) != 1:
+            raise RuntimeError('Expected exactly one bridge component: ' + name)
+        (resources / 'payload/bridge' / name).write_bytes(archive.read(candidates[0]))
+    info = plistlib.loads(archive.read('SteamGPTK.app/Contents/Info.plist'))
+    icon = info['CFBundleIconFile']
+    if not icon.endswith('.icns'):
+        icon += '.icns'
+    Path('out/free-ui-icons/SteamGPTK.icns').write_bytes(archive.read(base + icon))
+    Path('out/free-ui-icons/Assets.car').write_bytes(archive.read(base + 'Assets.car'))
 PY
 make app-payload
-cp dylib/feats/compat_run.sh app/Sources/NotProtonApp/Resources/compat_run.sh
+cp dylib/feats/compat_run.sh app/Sources/SteamGPTKApp/Resources/compat_run.sh
 # shellcheck source=scripts/free-ui-env.sh
 source "$repo_dir/scripts/free-ui-env.sh"
 steamgptk_swift_options "$build_dir"
@@ -62,19 +68,19 @@ try:
         (contents / name).mkdir(parents=True, exist_ok=True)
     info = plistlib.loads((repo / 'app/Info.plist').read_bytes())
     info.update(CFBundleIdentifier='io.github.ezfroze.steamgptk', CFBundleName='SteamGPTK',
-                CFBundleDisplayName='SteamGPTK', CFBundleShortVersionString='0.1.2',
-                CFBundleVersion='3', SUEnableAutomaticChecks=False, SUAutomaticallyUpdate=False)
+                CFBundleDisplayName='SteamGPTK', CFBundleShortVersionString='0.2.0',
+                CFBundleVersion='4', SUEnableAutomaticChecks=False, SUAutomaticallyUpdate=False)
     info.pop('SUFeedURL', None)
     info.pop('SUPublicEDKey', None)
     (contents / 'Info.plist').write_bytes(plistlib.dumps(info))
-    shutil.copy2(products / 'NotProtonApp', contents / 'MacOS/NotProtonApp')
-    for name, target in [('Sparkle.framework', 'Frameworks'), ('NotProtonApp_NotProtonApp.bundle', 'Resources')]:
+    shutil.copy2(products / 'SteamGPTKApp', contents / 'MacOS/SteamGPTKApp')
+    for name, target in [('Sparkle.framework', 'Frameworks'), ('SteamGPTKApp_SteamGPTKApp.bundle', 'Resources')]:
         subprocess.run(['/usr/bin/ditto', str(products / name), str(contents / target / name)], check=True)
-    for name in ['NotProton.icns', 'Assets.car']:
+    for name in ['SteamGPTK.icns', 'Assets.car']:
         shutil.copy2(repo / 'out/free-ui-icons' / name, contents / 'Resources' / name)
     licenses = contents / 'Resources/Licenses'
     licenses.mkdir()
-    for relative, name in [('LICENSE', 'NotProton-GPL-3.0.txt'), ('NOTICE', 'NOTICE.txt'),
+    for relative, name in [('LICENSE', 'SteamGPTK-GPL-3.0.txt'), ('NOTICE', 'NOTICE.txt'),
                            ('LICENSE.mac-windows-gaming', 'mac-windows-gaming-MIT.txt'),
                            ('LICENSE.lsteamclient', 'lsteamclient-LICENSE.txt'),
                            ('LICENSE.steam-shim', 'steam-shim-LICENSE.txt'),
@@ -97,10 +103,10 @@ try:
     for item in (contents / 'Resources').rglob('*'):
         if 'd3dmetal' in item.name.lower() or item.name == 'libd3dshared.dylib' or item.name == 'ntdll.dll':
             raise RuntimeError('Runtime binary must not be bundled: ' + str(item))
-    subprocess.run(['/usr/bin/install_name_tool', '-add_rpath', '@executable_path/../Frameworks', str(contents / 'MacOS/NotProtonApp')], check=True)
+    subprocess.run(['/usr/bin/install_name_tool', '-add_rpath', '@executable_path/../Frameworks', str(contents / 'MacOS/SteamGPTKApp')], check=True)
     subprocess.run(['/usr/bin/codesign', '-f', '-s', '-', str(stage)], check=True)
     subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(stage)], check=True)
-    # Preserve the previous local build rather than changing /Applications/NotProton.app.
+    # Preserve the previous local build rather than changing /Applications/SteamGPTK.app.
     if app.exists():
         previous = app.parent / (app.stem + '.previous-' + str(uuid.uuid4()) + '.app')
         app.rename(previous)

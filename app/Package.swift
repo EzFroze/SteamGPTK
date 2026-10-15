@@ -2,8 +2,8 @@
 // SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
 import Foundation
 import PackageDescription
-let testsPath = "Tests/NotProtonAppTests"
-let payloadPath = "Sources/NotProtonApp/Resources/payload"
+let testsPath = "Tests/SteamGPTKAppTests"
+let payloadPath = "Sources/SteamGPTKApp/Resources/payload"
 let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
 let hasTests = FileManager.default.fileExists(
     atPath: packageRoot.appendingPathComponent(testsPath).path)
@@ -14,16 +14,16 @@ let hasTests = FileManager.default.fileExists(
 let hasPayload = FileManager.default.fileExists(
     atPath: packageRoot.appendingPathComponent(payloadPath).path)
 let package = Package(
-    name: "NotProtonApp",
+    name: "SteamGPTKApp",
     platforms: [.macOS("26.0")],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0"),
     ],
     targets: [
         .executableTarget(
-            name: "NotProtonApp",
+            name: "SteamGPTKApp",
             dependencies: [.product(name: "Sparkle", package: "Sparkle")],
-            path: "Sources/NotProtonApp",
+            path: "Sources/SteamGPTKApp",
             resources: (hasPayload ? [.copy("Resources/payload")] : []) + [
                 .copy("Resources/payload.manifest"),
                 .copy("Resources/compat_run.sh"),
@@ -38,8 +38,8 @@ let package = Package(
         ),
     ] + (hasTests ? [
         .testTarget(
-            name: "NotProtonAppTests",
-            dependencies: ["NotProtonApp"],
+            name: "SteamGPTKAppTests",
+            dependencies: ["SteamGPTKApp"],
             path: testsPath
         ),
     ] : [])

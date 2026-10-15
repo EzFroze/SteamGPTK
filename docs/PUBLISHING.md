@@ -8,7 +8,7 @@ Use the fork as `origin` and the original project as `upstream`:
 
 ```text
 origin    git@github.com:EzFroze/SteamGPTK.git
-upstream  https://github.com/NotProtonNot/NotProton.git
+upstream  <original project URL listed in README.md>
 ```
 
 Push the implementation branch without rewriting the fork's existing `main`:
@@ -31,8 +31,8 @@ make profilecheck compatcheck webpatch-fixtures compatsvc-check
 For the local GPTK import/install smoke test:
 
 ```bash
-NOTPROTON_INSTALL_SMOKE=1 \
-NOTPROTON_GPTK_DMG="/path/to/your/GPTK4.dmg" \
+STEAMGPTK_INSTALL_SMOKE=1 \
+STEAMGPTK_GPTK_DMG="/path/to/your/GPTK4.dmg" \
 ./scripts/test-free-ui.sh --filter FreeInstallSmokeTests
 ```
 
@@ -52,8 +52,8 @@ Update the app version in `app/Info.plist` and `scripts/build-free-ui.sh`, and a
 
 ```bash
 git push origin codex/wine-gptk-ui
-git tag -a steamgptk-v0.1.0 -m "SteamGPTK 0.1.0"
-git push origin steamgptk-v0.1.0
+git tag -a steamgptk-v0.2.0 -m "SteamGPTK 0.2.0"
+git push origin steamgptk-v0.2.0
 ```
 
 A `steamgptk-vX.Y.Z` tag runs the full build and lint workflows, verifies the app version, source revision and checksum, then **publishes** the release with `SteamGPTK.zip` and `SteamGPTK.zip.sha256`. Push a release tag only when publication is intended. This works through SSH and does not require changing the default branch, a local API token or browser access. Existing releases are not replaced.
@@ -65,13 +65,13 @@ If a job fails, inspect its logs before creating another release. Never move a p
 After this branch is the default branch and CI is green:
 
 1. Open **Actions → release → Run workflow** and select the intended commit/branch.
-2. Choose a new tag such as `steamgptk-v0.1.0` and enter release notes.
+2. Choose a new tag such as `steamgptk-v0.2.0` and enter release notes.
 3. The workflow builds the app and creates a **draft** release with the app archive and checksum. Existing tags/releases are never force-replaced or deleted.
 4. Review the draft and its artifact, then publish it explicitly in GitHub.
 
 The app uses an ad-hoc signature and is not notarized. Do not describe it as Apple-signed or Apple-approved. The source archive for the release tag must correspond to the binary build; the built app includes its source revision and license notices.
 
-Automatic updates to the original NotProton app are disabled. A future updater must use this fork's own feed and signing key.
+Automatic updates are disabled. A future updater must use this fork's own feed and signing key.
 
 ## License/source notices
 

@@ -1,6 +1,6 @@
 // AOB pattern scanner
-#ifndef NOTPROTON_RESOLVER_AOB_H
-#define NOTPROTON_RESOLVER_AOB_H
+#ifndef STEAMGPTK_RESOLVER_AOB_H
+#define STEAMGPTK_RESOLVER_AOB_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -21,4 +21,4 @@ void np_release_pattern(np_byte_pattern_t *pat);
 // multiple matches exist.
 uintptr_t np_scan_sole_match(uintptr_t base, size_t size, const np_byte_pattern_t *pat);
 
-#endif // NOTPROTON_RESOLVER_AOB_H
+#endif // STEAMGPTK_RESOLVER_AOB_H

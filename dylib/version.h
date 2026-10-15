@@ -1,7 +1,7 @@
 // Build version string
-#ifndef NOTPROTON_VERSION_H
-#define NOTPROTON_VERSION_H
+#ifndef STEAMGPTK_VERSION_H
+#define STEAMGPTK_VERSION_H
 
-#define NOTPROTON_VERSION "1.0.1"
+#define STEAMGPTK_VERSION "0.2.0"
 
-#endif // NOTPROTON_VERSION_H
+#endif // STEAMGPTK_VERSION_H

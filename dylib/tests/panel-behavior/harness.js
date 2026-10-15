@@ -54,7 +54,7 @@ function details(launchOptions, over) {
   return Object.assign({
     unAppID: 287700,
     vecPlatforms: ['windows'],
-    strCompatToolName: 'notproton',
+    strCompatToolName: 'steamgptk-proton',
     strLaunchOptions: launchOptions,
   }, over || {});
 }

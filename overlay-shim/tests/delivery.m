@@ -8,9 +8,9 @@
 // for FEX CrossOver, lsteamclient loads the shim by hand
 static int delivery_by_dlopen(void)
 {
-	const char *path = getenv("NOTPROTON_OVERLAY_SHIM");
+	const char *path = getenv("STEAMGPTK_OVERLAY_SHIM");
 
-	SKIP_IF(path == NULL, "NOTPROTON_OVERLAY_SHIM names the shim to load");
+	SKIP_IF(path == NULL, "STEAMGPTK_OVERLAY_SHIM names the shim to load");
 
 	void *shim = dlopen(path, RTLD_NOW | RTLD_LOCAL);
 	CHECK(shim != NULL, "%s does not load: %s", path, dlerror());

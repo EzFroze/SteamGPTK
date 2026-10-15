@@ -7,7 +7,7 @@ scratch="$(mktemp -d "${TMPDIR:-/tmp}/steamgptk-resources.XXXXXX")"
 trap 'rm -rf "$scratch"' EXIT
 ditto "$app_path" "$scratch/SteamGPTK.app"
 codesign --verify --deep --strict "$scratch/SteamGPTK.app"
-python3 - "$scratch/SteamGPTK.app/Contents/MacOS/NotProtonApp" <<'PY'
+python3 - "$scratch/SteamGPTK.app/Contents/MacOS/SteamGPTKApp" <<'PY'
 import os, subprocess, sys
 environment = os.environ.copy()
 for name in ['PACKAGE_RESOURCE_BUNDLE_PATH', 'PACKAGE_RESOURCE_BUNDLE_URL']:

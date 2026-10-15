@@ -1,6 +1,6 @@
 #!/bin/sh
 # SteamGPTK fork modifications, 2026-10-15. Existing component licenses apply.
-# notproton CrossOver compatibility tool shim
+# SteamGPTK Wine compatibility tool shim
 set -e
 
 verb="$1"
@@ -14,8 +14,12 @@ argi=0
 while [ "$argi" -lt "$argc" ]; do
   arg="$1"
   shift
+  # Upgrade launch options saved by earlier releases.
   case "$arg" in
-    CX_GRAPHICS*=*|D3DM_*=*|DXMT_*=*|DXVK_*=*|MTL_*=*|NOTPROTON_*=*|ROSETTA_*=*|WINE*=*)
+    NOTPROTON_*=*) arg="STEAMGPTK_${arg#NOTPROTON_}" ;;
+  esac
+  case "$arg" in
+    CX_GRAPHICS*=*|D3DM_*=*|DXMT_*=*|DXVK_*=*|MTL_*=*|STEAMGPTK_*=*|ROSETTA_*=*|WINE*=*)
       # shellcheck disable=SC2163 # arg is a NAME=VALUE pair, which export takes as an assignment
       export "$arg"
       launch_env="$launch_env $arg"
@@ -32,7 +36,7 @@ case "$verb" in
     ;;
 esac
 
-CX_ROOT="$HOME/Library/Application Support/notproton/runners/current"
+CX_ROOT="$HOME/Library/Application Support/steamgptk/runners/current"
 export CX_ROOT
 
 if [ -d "$CX_ROOT/Contents/Resources/wine" ]; then
@@ -86,14 +90,14 @@ export DYLD_FALLBACK_LIBRARY_PATH="$CX_ROOT/lib/deps:$CX_ROOT/lib/external:${DYL
 [ -f "$CX_ROOT/runner.env" ] && . "$CX_ROOT/runner.env"
 
 if [ -n "$STEAM_COMPAT_DATA_PATH" ]; then
-  log="$STEAM_COMPAT_DATA_PATH/notproton-run.log"
+  log="$STEAM_COMPAT_DATA_PATH/steamgptk-run.log"
 else
   log=/dev/null
 fi
 [ "$(stat -f %z "$log" 2>/dev/null || echo 0)" -gt 262144 ] \
   && : > "$log" || true
 {
-  echo "=== notproton run $(date) ==="
+  echo "=== steamgptk run $(date) ==="
   echo "verb=$verb"
   echo "args:"; for a in "$@"; do echo "  [$a]"; done
   echo "cwd=$(pwd)"
@@ -159,11 +163,11 @@ refuse_foreign_prefix() {
   esac
   have=$(prefix_machine) || return 0
   [ "$have" = "$want" ] && return 0
-  echo "=== prefix ntdll is $have and this compatibility tool wants $want, rebuild the prefix in NotProton ===" >> "$log" 2>&1 || true
+  echo "=== prefix ntdll is $have and this compatibility tool wants $want, rebuild the prefix in SteamGPTK ===" >> "$log" 2>&1 || true
 
   if [ "$verb" != run ]; then
     osascript >/dev/null 2>&1 <<APPLESCRIPT || true
-display alert "This game needs its prefix rebuilt" message "This game originally ran under $(tool_name "$have"), but $(tool_name "$want") is present now. The prefix needs to be rebuilt in NotProton in order to run the game. You will not lose game saves by rebuilding the prefix." as critical
+display alert "This game needs its prefix rebuilt" message "This game originally ran under $(tool_name "$have"), but $(tool_name "$want") is present now. The prefix needs to be rebuilt in SteamGPTK in order to run the game. You will not lose game saves by rebuilding the prefix." as critical
 APPLESCRIPT
   fi
   exit 1
@@ -337,7 +341,7 @@ alias_host_profile() (
       echo "=== profile migration refused; both versions remain in place ===" >> "$log" 2>&1 || true
       return 1
     fi
-    held="$legacy.notproton-backup.$(date +%Y%m%d-%H%M%S)"
+    held="$legacy.steamgptk-backup.$(date +%Y%m%d-%H%M%S)"
     while [ -e "$held" ] || [ -L "$held" ]; do held="$held.1"; done
     mv "$legacy" "$held" || return 1
     if ! ln -s steamuser "$legacy"; then
@@ -389,9 +393,11 @@ if [ -n "$STEAM_COMPAT_DATA_PATH" ]; then
   export WINEPREFIX="$STEAM_COMPAT_DATA_PATH/pfx"
   mkdir -p "$WINEPREFIX"
   msync_from=launch-options
-  if [ -z "$WINEMSYNC" ] && [ -r "$STEAM_COMPAT_DATA_PATH/notproton-msync" ]; then
+  sync_marker="$STEAM_COMPAT_DATA_PATH/steamgptk-msync"
+  [ -r "$sync_marker" ] || sync_marker="$STEAM_COMPAT_DATA_PATH/notproton-msync"
+  if [ -z "$WINEMSYNC" ] && [ -r "$sync_marker" ]; then
     WINEMSYNC=$(tr -d ' \t\n' \
-      < "$STEAM_COMPAT_DATA_PATH/notproton-msync" 2>/dev/null || true)
+      < "$sync_marker" 2>/dev/null || true)
     msync_from=carried-over
   fi
   [ -n "$WINEMSYNC" ] || msync_from=default
@@ -405,9 +411,11 @@ if [ -n "$STEAM_COMPAT_DATA_PATH" ]; then
     fi
   fi
   printf '%s' "$WINEMSYNC" \
-    > "$STEAM_COMPAT_DATA_PATH/notproton-msync" 2>/dev/null || true
-  if [ -z "$MTL_HUD_ENABLED" ] && [ -r "$STEAM_COMPAT_DATA_PATH/notproton-hud" ]; then
-    MTL_HUD_ENABLED=$(tr -d ' \t\n' < "$STEAM_COMPAT_DATA_PATH/notproton-hud" 2>/dev/null || true)
+    > "$STEAM_COMPAT_DATA_PATH/steamgptk-msync" 2>/dev/null || true
+  hud_marker="$STEAM_COMPAT_DATA_PATH/steamgptk-hud"
+  [ -r "$hud_marker" ] || hud_marker="$STEAM_COMPAT_DATA_PATH/notproton-hud"
+  if [ -z "$MTL_HUD_ENABLED" ] && [ -r "$hud_marker" ]; then
+    MTL_HUD_ENABLED=$(tr -d ' \t\n' < "$hud_marker" 2>/dev/null || true)
     export MTL_HUD_ENABLED
     echo "hud: MTL_HUD_ENABLED=$MTL_HUD_ENABLED from carry-over" >> "$log" 2>&1 || true
   fi
@@ -423,10 +431,10 @@ if [ -n "$STEAM_COMPAT_DATA_PATH" ]; then
   "$WINELOADER" reg add 'HKCU\Software\Wine\WineDbg' /v ShowCrashDialog /t REG_DWORD /d 0 /f >> "$log" 2>&1 || true
 
   # Retina on by default so games see real pixels (e.g. 3024x1964) instead of the scaled
-  # "looks like" size; pass NOTPROTON_RETINA=0 after %command% to opt a game out.
-  NOTPROTON_RETINA="${NOTPROTON_RETINA:-1}"
-  echo "video: RetinaMode=$NOTPROTON_RETINA" >> "$log" 2>&1 || true
-  if [ "$NOTPROTON_RETINA" = "1" ]; then
+  # "looks like" size; pass STEAMGPTK_RETINA=0 after %command% to opt a game out.
+  STEAMGPTK_RETINA="${STEAMGPTK_RETINA:-1}"
+  echo "video: RetinaMode=$STEAMGPTK_RETINA" >> "$log" 2>&1 || true
+  if [ "$STEAMGPTK_RETINA" = "1" ]; then
     "$WINELOADER" reg add 'HKCU\Software\Wine\Mac Driver' /v RetinaMode /t REG_SZ /d y /f >> "$log" 2>&1 || true
   else
     "$WINELOADER" reg delete 'HKCU\Software\Wine\Mac Driver' /v RetinaMode /f >> "$log" 2>&1 || true
@@ -438,11 +446,11 @@ if [ -n "$STEAM_COMPAT_DATA_PATH" ]; then
   "$WINELOADER" reg add 'HKLM\Software\Classes\steam\shell\open\command' /ve /t REG_SZ /d '"C:\Program Files (x86)\Steam\steam.exe" "%1"' /f >> "$log" 2>&1 || true
 fi
 
-bridge_src="$HOME/Library/Application Support/notproton/bridge"
+bridge_src="$HOME/Library/Application Support/steamgptk/bridge"
 prefix_steam="$WINEPREFIX/drive_c/Program Files (x86)/Steam"
 verify_runner() {
   if [ ! -d "$bridge_src/wine" ]; then
-    echo "=== no patched ntdll in the bridge, run NotProton ===" >> "$log" 2>&1 || true
+    echo "=== no patched ntdll in the bridge, run SteamGPTK ===" >> "$log" 2>&1 || true
     return
   fi
   for arch in x86_64-windows i386-windows aarch64-windows; do
@@ -450,9 +458,9 @@ verify_runner() {
     live="$CX_ROOT/lib/wine/$arch/ntdll.dll"
     [ -f "$staged" ] || continue
     if [ ! -f "$live" ]; then
-      echo "=== runner has no $arch ntdll, set up the runner in NotProton ===" >> "$log" 2>&1 || true
+      echo "=== runner has no $arch ntdll, set up the runner in SteamGPTK ===" >> "$log" 2>&1 || true
     elif ! cmp -s "$staged" "$live"; then
-      echo "=== runner $arch ntdll is not the patched copy, set up the runner in NotProton ===" >> "$log" 2>&1 || true
+      echo "=== runner $arch ntdll is not the patched copy, set up the runner in SteamGPTK ===" >> "$log" 2>&1 || true
     fi
   done
   for arch in i386-windows x86_64-windows "${wine_unix##*/}"; do
@@ -461,7 +469,7 @@ verify_runner() {
       *) name="lsteamclient.dll" ;;
     esac
     [ -f "$CX_ROOT/lib/wine/$arch/$name" ] && continue
-    echo "=== runner is missing $arch/$name, set up the runner in NotProton ===" >> "$log" 2>&1 || true
+    echo "=== runner is missing $arch/$name, set up the runner in SteamGPTK ===" >> "$log" 2>&1 || true
   done
 }
 install_lsteamclient_trigger() {
@@ -610,7 +618,7 @@ while [ -n "$client_root" ] && [ "$client_root" != "/" ] && [ ! -d "$client_root
   client_root=$(dirname "$client_root")
 done
 # Icon stuff
-appinfo_tool="$HOME/Library/Application Support/notproton/appinfo"
+appinfo_tool="$HOME/Library/Application Support/steamgptk/appinfo"
 appinfo_vdf="$client_root/appcache/appinfo.vdf"
 meta_name=""
 meta_icon=""
@@ -630,7 +638,7 @@ fi
 # shellcheck disable=SC1003 # the pair deletes a literal backslash, not a quote
 bundle_name=$(printf '%s' "$game_name" | tr -d '/:"`$\\')
 game_name_xml=$(printf '%s' "$game_name" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
-loader_root="$HOME/Library/Application Support/notproton/launchers/$app_id"
+loader_root="$HOME/Library/Application Support/steamgptk/launchers/$app_id"
 mkdir -p "$loader_root"
 loader_app="$loader_root/$bundle_name.app"
 rm -rf "$loader_root"/*.app
@@ -642,7 +650,7 @@ mkdir -p "$loader_macos" "$loader_res"
 icon_arg=""
 resolve_icon() {
   set +e
-  iconmaker="$HOME/Library/Application Support/notproton/iconmaker"
+  iconmaker="$HOME/Library/Application Support/steamgptk/iconmaker"
   art_dir="$client_root/appcache/librarycache/$app_id"
   art=""
   if [ -n "$meta_clienticon" ]; then
@@ -694,13 +702,13 @@ resolve_icon() {
     icon_source="$art $(stat -f %m "$art" 2>/dev/null || echo 0)"
   fi
   icon_cache="$loader_root/game.icns"
-  if [ -n "$art" ] && [ -s "$icon_cache" ] &&   [ "$(cat "$loader_root/notproton-icon.source" 2>/dev/null)" =   "$icon_source" ] && cp -f "$icon_cache" "$loader_res/game.icns"; then
+  if [ -n "$art" ] && [ -s "$icon_cache" ] &&   [ "$(cat "$loader_root/steamgptk-icon.source" 2>/dev/null)" =   "$icon_source" ] && cp -f "$icon_cache" "$loader_res/game.icns"; then
     icon_arg="  <key>CFBundleIconFile</key><string>game</string>"
     echo "icon reused from $art" >> "$log" 2>&1 || true
   elif [ -n "$art" ] && [ -x "$iconmaker" ]; then
     if "$iconmaker" "$art" "$icon_cache" >> "$log" 2>&1 &&   cp -f "$icon_cache" "$loader_res/game.icns"; then
       icon_arg="  <key>CFBundleIconFile</key><string>game</string>"
-      printf '%s\n' "$icon_source" > "$loader_root/notproton-icon.source"
+      printf '%s\n' "$icon_source" > "$loader_root/steamgptk-icon.source"
       echo "icon built from $art" >> "$log" 2>&1 || true
     elif [ "$art" = "$ico" ]; then
       # A cached .ico that iconmaker rejects is corrupt and passes the size
@@ -716,9 +724,9 @@ resolve_icon || true
 [ -n "$icon_arg" ] || echo "no icon resolved, launching without one" >> "$log" 2>&1 || true
 
 uielement_arg=""
-if [ "${NOTPROTON_HIDE_LAUNCHER_TILE:-0}" = "1" ]; then
+if [ "${STEAMGPTK_HIDE_LAUNCHER_TILE:-0}" = "1" ]; then
   uielement_arg="  <key>LSUIElement</key><true/>"
-  echo "launcher tile hidden by NOTPROTON_HIDE_LAUNCHER_TILE" >> "$log" 2>&1 || true
+  echo "launcher tile hidden by STEAMGPTK_HIDE_LAUNCHER_TILE" >> "$log" 2>&1 || true
 fi
 cat > "$loader_contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -727,7 +735,7 @@ cat > "$loader_contents/Info.plist" <<PLIST
 <dict>
   <key>CFBundleName</key><string>$game_name_xml</string>
   <key>CFBundleDisplayName</key><string>$game_name_xml</string>
-  <key>CFBundleIdentifier</key><string>com.notproton.launcher.$app_id</string>
+  <key>CFBundleIdentifier</key><string>com.steamgptk.launcher.$app_id</string>
   <key>CFBundleExecutable</key><string>launcher</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
@@ -770,20 +778,22 @@ cat > "$loader_macos/launcher" <<LAUNCHER
 export WINELOADER="$WINELOADER"
 # SIP strips DYLD_* when exec-ing /bin/sh, so bake the runner lib path in here
 export DYLD_FALLBACK_LIBRARY_PATH="$DYLD_FALLBACK_LIBRARY_PATH"
-wine_log="$loader_root/notproton-wine.log"
+wine_log="$loader_root/steamgptk-wine.log"
 exec > "\$wine_log" 2>&1
-shim="$HOME/Library/Application Support/notproton/overlay-shim.dylib"
+shim="$HOME/Library/Application Support/steamgptk/overlay-shim.dylib"
 if [ -f "\$shim" ]; then
   if [ -n "\$STEAM_DYLD_INSERT_LIBRARIES" ]; then
     export DYLD_INSERT_LIBRARIES="\$shim:\$STEAM_DYLD_INSERT_LIBRARIES"
   else
     export DYLD_INSERT_LIBRARIES="\$shim"
   fi
+  export STEAMGPTK_OVERLAY_SHIM="\$shim"
+  # The pinned bridge payload still reads its original protocol variable.
   export NOTPROTON_OVERLAY_SHIM="\$shim"
 elif [ -n "\$STEAM_DYLD_INSERT_LIBRARIES" ]; then
   export DYLD_INSERT_LIBRARIES="\$STEAM_DYLD_INSERT_LIBRARIES"
 fi
-[ -n "\$NOTPROTON_GAME_CWD" ] && cd "\$NOTPROTON_GAME_CWD"
+[ -n "\$STEAMGPTK_GAME_CWD" ] && cd "\$STEAMGPTK_GAME_CWD"
 "$WINELOADER" "\$@"
 exit \$?
 LAUNCHER
@@ -917,7 +927,7 @@ set -- \
   --env STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_COMPAT_CLIENT_INSTALL_PATH" \
   --env STEAM_COMPAT_APP_ID="$STEAM_COMPAT_APP_ID" \
   --env STEAM_DYLD_INSERT_LIBRARIES="$STEAM_DYLD_INSERT_LIBRARIES" \
-  --env NOTPROTON_GAME_CWD="$game_cwd" "$@"
+  --env STEAMGPTK_GAME_CWD="$game_cwd" "$@"
 lsregister="/System/Library/Frameworks/CoreServices.framework/Versions/A"
 lsregister="$lsregister/Frameworks/LaunchServices.framework/Support/lsregister"
 [ -x "$lsregister" ] && "$lsregister" -f "$loader_app" >> "$log" 2>&1 || true

@@ -51,8 +51,8 @@ static const np_hook_group_t np_steamui_groups[] = {
 // Installs one entry. Returns 1 when the patch lands, 0 when it is skipped or fails.
 static int np_apply_entry(np_resolve_result_t *resolved, const char *group,
                           np_patch_entry_t *e) {
-    if (np_hooks_env_lists_label("NOTPROTON_DISABLE", e->label)) {
-        NP_WARN("[%s] %s: DISABLED via NOTPROTON_DISABLE", group, e->label);
+    if (np_hooks_env_lists_label("STEAMGPTK_DISABLE", e->label)) {
+        NP_WARN("[%s] %s: DISABLED via STEAMGPTK_DISABLE", group, e->label);
         return 0;
     }
 

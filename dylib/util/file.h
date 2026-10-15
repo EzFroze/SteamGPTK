@@ -1,6 +1,6 @@
 // File/Path Helpers.
-#ifndef NOTPROTON_UTIL_FILE_H
-#define NOTPROTON_UTIL_FILE_H
+#ifndef STEAMGPTK_UTIL_FILE_H
+#define STEAMGPTK_UTIL_FILE_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -12,4 +12,4 @@ const char *np_home_dir(void);
 
 void np_support_path(char *buf, size_t bufsz, const char *home, const char *rel);
 
-#endif // NOTPROTON_UTIL_FILE_H
+#endif // STEAMGPTK_UTIL_FILE_H

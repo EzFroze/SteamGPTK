@@ -64,8 +64,8 @@ TREE=${TREE:-$repo/build/lsteamclient}
 # The cloned runner, not the user's installed CrossOver. --install writes into this
 # tree, and the installed app has to stay stock: it is the only clean copy on the
 # machine and it is what the clone and the ntdll patcher are both taken from.
-CX_ROOT=${CX_ROOT:-$HOME/Library/Application Support/notproton/runners/current}
-BRIDGE_DIR=${BRIDGE_DIR:-$HOME/Library/Application Support/notproton/bridge}
+CX_ROOT=${CX_ROOT:-$HOME/Library/Application Support/steamgptk/runners/current}
+BRIDGE_DIR=${BRIDGE_DIR:-$HOME/Library/Application Support/steamgptk/bridge}
 
 install=0
 do_pe=1

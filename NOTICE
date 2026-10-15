@@ -1,5 +1,5 @@
-NotProton licensing
-===================
+SteamGPTK licensing
+==================
 
 NotProton has a complex licensing situation. The bulk of the project is licensed
 under GPLV3.
@@ -49,5 +49,5 @@ Sikarugir-App/Engines and Sikarugir-App/Wrapper at pinned checksums.
 Apple GPTK/D3DMetal is supplied by the user from Apple's download and is not
 included in the repository or app archive. Apple's terms apply to those files.
 
-Dobby is statically linked into the NotProton module (Apache-2.0):
+Dobby is statically linked into the SteamGPTK module (Apache-2.0):
 https://github.com/jmpews/Dobby/tree/5dfc8546954ce3b3198132ab13fddb89ee92cdd7

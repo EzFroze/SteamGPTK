@@ -740,11 +740,11 @@ static void sync_env_var( const char *name, bool unset, const char *val )
 #ifdef __APPLE__
 /* The FEX wine loader is hardened without allow-dyld-environment-variables, so
  * dyld drops the insert list that would carry the overlay renderer and the
- * notproton shim. Load them by hand instead. */
+ * steamgptk shim. Load them by hand instead. */
 static void load_overlay_libraries( void )
 {
     const char *inserts = getenv( "STEAM_DYLD_INSERT_LIBRARIES" );
-    const char *shim = getenv( "NOTPROTON_OVERLAY_SHIM" );
+    const char *shim = getenv( "STEAMGPTK_OVERLAY_SHIM" );
     void *handle, *shim_handle = NULL;
     void (*install)( void );
     char *list, *cursor, *path;

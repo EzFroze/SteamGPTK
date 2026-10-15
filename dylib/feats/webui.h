@@ -1,7 +1,7 @@
 // WebUI route registration for routes the macOS client does not serve.
 // Specific to the Steam beta client, which has a new UI.
-#ifndef NOTPROTON_FEATS_WEBUI_H
-#define NOTPROTON_FEATS_WEBUI_H
+#ifndef STEAMGPTK_FEATS_WEBUI_H
+#define STEAMGPTK_FEATS_WEBUI_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -15,7 +15,7 @@ int np_webui_init(const struct mach_header_64 *mh, intptr_t slide,
 
 uintptr_t np_webui_registry(void);
 
-// Logs every route the client serves. Runs with NOTPROTON_WEBUI_ROUTES set.
+// Logs every route the client serves. Runs with STEAMGPTK_WEBUI_ROUTES set.
 void np_webui_dump_routes(void);
 
 // The instruction where the dispatcher looks up a route, or 0.
@@ -42,4 +42,4 @@ typedef int (*np_webui_handler_fn)(uintptr_t request, uintptr_t response);
 int np_webui_register_route(const char *name, uintptr_t request_vptr,
                            uintptr_t response_vptr, np_webui_handler_fn handler);
 
-#endif // NOTPROTON_FEATS_WEBUI_H
+#endif // STEAMGPTK_FEATS_WEBUI_H

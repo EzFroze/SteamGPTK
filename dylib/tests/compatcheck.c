@@ -238,9 +238,9 @@ static void installed_fn_cases(void) {
     check(np_compat_valid_platforms(NULL, 7) == 0, "no manager reports no platform");
 
     np_compat_set_app_mapping_fn((uintptr_t)stub_find_mapping);
-    stub_mapping_entry[0] = "notproton";
+    stub_mapping_entry[0] = "steamgptk-proton";
     check(np_compat_app_mapping(manager, 7) != NULL, "a mapped app reports its entry");
-    check(strcmp(np_compat_app_mapping(manager, 7), "notproton") == 0,
+    check(strcmp(np_compat_app_mapping(manager, 7), "steamgptk-proton") == 0,
           "the name in the entry is what comes back");
     check(np_compat_app_mapping(manager, 0) == NULL,
           "appid zero is refused rather than reaching the global entry");
@@ -253,12 +253,12 @@ static void installed_fn_cases(void) {
 
     np_compat_set_mapping_fn((uintptr_t)stub_set_mapping);
     last_priority = 0;
-    np_compat_map_tool(manager, 7, "notproton");
+    np_compat_map_tool(manager, 7, "steamgptk-proton");
     check(last_appid == 7 && last_priority == COMPAT_MAPPING_PRIORITY_APP,
           "an app mapping outranks the global one");
 
     last_priority = 0;
-    np_compat_map_tool(manager, 0, "notproton");
+    np_compat_map_tool(manager, 0, "steamgptk-proton");
     check(last_appid == 0 && last_priority == COMPAT_MAPPING_PRIORITY_GLOBAL,
           "the global mapping stays under the threshold that skips the platform check");
 

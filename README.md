@@ -14,7 +14,7 @@ SteamGPTK is a community fork of [NotProton](https://github.com/NotProtonNot/Not
 - A **GPTK 4 DMG downloaded by you from Apple**. GPTK 4.0 beta 3 was tested; compatibility with other versions is not established.
 - Internet access for the initial Wine, bridge and support-library downloads.
 
-The tested machine is an M1 Pro MacBook Pro running macOS 27.0.1. This is an experimental compatibility tool: support varies by game. The current Wine detour targets 64-bit Windows games; 32-bit games, anti-cheat and DRM compatibility are not guaranteed. Ray tracing is disabled in the initial runtime defaults used for the tested M1 configuration.
+The tested machine is an M1 Pro MacBook Pro running macOS 27.0.1. This is an experimental compatibility tool: support varies by game. DirectX 8/9 games use D9VK automatically, including 32-bit titles. Half-Life 2 was tested with this path. Compatibility with other games, anti-cheat and DRM varies. Ray tracing is disabled in the initial runtime defaults used for the tested M1 configuration.
 
 ## Installation
 
@@ -44,6 +44,14 @@ Installation and import are disabled while Steam is running. Existing game prefi
 
 Windows-only titles use the compatibility tool. Games with a native macOS build keep their native route unless you explicitly select a Windows compatibility tool in that game's Steam settings.
 
+## Graphics and upgrading to 0.2.0
+
+DirectX 8/9 uses **D9VK → Vulkan → Metal** automatically. DirectX 11/12 keeps the selected D3DMetal, DXMT or DXVK backend. An explicit **WineD3D** choice disables the alternative renderers. No `WINEDLLPATH_D9VK` launch option is needed; remove a previously added override after upgrading.
+
+For an existing installation, quit Steam and Wine games, open the new app and click **Install / Repair**. Your imported GPTK, Wine runtime, backups, prefixes and saves are retained. The installer creates a compatible path to existing support files, backs up Steam configuration before updating tool selections, and uses the internal tool identifier `steamgptk-proton` so Steam Cloud continues to map Windows save folders. Conflicting separate old and new support directories are preserved and reported instead of merged.
+
+Vulkan driver paths are corrected during setup and repair. The first D9VK launch can take longer while graphics caches are created. Game performance must be checked during gameplay; menu FPS is not a benchmark.
+
 ## Steam Cloud
 
 The launch script unifies Wine's account profile with `steamuser`, so Steam's Windows cloud-save roots and the game resolve to the same files. Conflicting existing saves are not silently overwritten; the launch stops and records the conflict for resolution.
@@ -63,7 +71,7 @@ open out/SteamGPTK.app
 
 The explicit branch selects this fork's Wine/GPTK implementation even before it is made the default branch on GitHub. Use a checkout path without spaces when building the native module.
 
-The build pins Dobby and an upstream bridge archive, verifies the archive checksum, compiles the module/UI and produces `out/SteamGPTK.app`. It packages license notices and rejects accidentally staged GPTK renderer binaries. No GPTK image, Wine runtime or patched `ntdll.dll` is packaged with the app. The Wine detour is applied locally to the verified downloaded engine.
+The build pins Dobby and the bridge payload from SteamGPTK 0.1.2, verifies the archive checksum, compiles the module/UI and produces `out/SteamGPTK.app`. It packages license notices and rejects accidentally staged GPTK renderer binaries. No GPTK image, Wine runtime or patched `ntdll.dll` is packaged with the app. The Wine detour is applied locally to the verified downloaded engine.
 
 `NP_UI_SDK=/path/to/MacOSX.sdk` overrides SDK selection. `NP_UI_BUILD_DIR=/path/to/cache` overrides the Swift build cache. The script uses the installed macOS 26.5 SDK when available, to support Command Line Tools installations without the SwiftUI macro plugin.
 
@@ -75,21 +83,21 @@ make profilecheck compatcheck webpatch-fixtures compatsvc-check
 A separate, opt-in full installation test uses only a temporary runtime and your local GPTK image:
 
 ```bash
-NOTPROTON_INSTALL_SMOKE=1 \
-NOTPROTON_GPTK_DMG="/path/to/Game_Porting_Toolkit_4.dmg" \
+STEAMGPTK_INSTALL_SMOKE=1 \
+STEAMGPTK_GPTK_DMG="/path/to/Game_Porting_Toolkit_4.dmg" \
 ./scripts/test-free-ui.sh --filter FreeInstallSmokeTests
 ```
 
-The app does not install the upstream NotProton auto-updates. Obtain updates from this fork and run **Install / Repair** with Steam closed.
+Automatic updates are disabled. Obtain updates from this repository and run **Install / Repair** with Steam closed.
 
 ## Troubleshooting and removal
 
 - If maintenance buttons are disabled, quit Steam and wait for prefix operations to finish.
 - If the DMG is rejected, verify that it contains the GPTK 4 Windows evaluation environment, not only shader-conversion tools.
 - Use **Install / Repair** to restore missing Wine or integration components. Imported GPTK is retained when Wine is rebuilt.
-- Steam client updates can change the functions used by NotProton. The app offers an update-block toggle; future Steam builds may require a fork update.
-- UI log: `~/Library/Application Support/notproton/app.log`.
-- Game launch log: `notproton-run.log` inside that game's `steamapps/compatdata/<AppID>/` directory in its Steam library.
+- Steam client updates can change the functions used by SteamGPTK. The app offers an update-block toggle; future Steam builds may require a fork update.
+- UI log: `~/Library/Application Support/steamgptk/app.log`.
+- Game launch log: `steamgptk-run.log` inside that game's `steamapps/compatdata/<AppID>/` directory in its Steam library.
 - **Original Steam → Restore…** removes the Steam integration. **Remove SteamGPTK → Remove…** also removes the managed runtime and imported GPTK. Game prefixes and saves remain in the Steam library.
 
 Include macOS version, Mac chip, Steam build, game name/AppID and the relevant log excerpt when reporting an issue. Redact account details and personal paths before posting logs publicly.
