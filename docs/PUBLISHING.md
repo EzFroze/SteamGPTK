@@ -48,7 +48,7 @@ The app supports `--check-resources` for a headless packaging check. The wrapper
 
 ## Publish a release from the terminal
 
-Update the app version in `app/Info.plist` and `scripts/build-free-ui.sh`, and add the matching `docs/releases/X.Y.Z.md` notes. Commit the release candidate, then push a new version tag:
+Update the version in `app/Info.plist`, `scripts/build-free-ui.sh` and `dylib/version.h`, and add the matching `docs/releases/X.Y.Z.md` notes. Commit the release candidate, then push a new version tag:
 
 ```bash
 git push origin codex/wine-gptk-ui

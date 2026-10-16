@@ -814,22 +814,38 @@ prefix_server_dir() {
     "$(printf '%s' "$ids" | awk -F- '{printf "%x-%x", $1, $2}')"
 }
 
+wine_game_pids() {
+  # ucomm identifies the native loader even after Wine replaces argv[0] with
+  # a Windows executable. Matching /wine anywhere in argv also matches other
+  # shell launchers' renderer options, keeping closed sessions alive forever.
+  ps -ww -eo pid=,ucomm=,args= 2>/dev/null | \
+    STEAMGPTK_WINE_HELPERS="$wine_helpers" awk '
+      BEGIN { helpers = ENVIRON["STEAMGPTK_WINE_HELPERS"] }
+      $1 !~ /^[0-9]+$/ { next }
+      {
+        image = tolower($2)
+        if (image !~ /^(wine|wine64|wine-preloader|wine64-preloader)$/) next
+        pid = $1
+        command = tolower($0)
+        sub(/^[[:space:]]*[0-9]+[[:space:]]+[^[:space:]]+[[:space:]]+/, "", command)
+        if (!match(command, /\.exe([[:space:]"]|$)/)) next
+        executable = substr(command, 1, RSTART + 3)
+        gsub(/\\/, "/", executable)
+        sub(/^.*\//, "", executable)
+        # Exclude the helper executable, not helper names passed to a game.
+        if (executable ~ helpers) next
+        print pid
+      }
+    '
+}
+
 prefix_game_running() {
-  # Keep full process arguments for the Wine helper exclusions below.
-  # shellcheck disable=SC2009
-  ps -ww -eo pid,args 2>/dev/null | \
-    grep -v "^[[:space:]]*$$[[:space:]]" | \
-    grep -iE '/(wine|wine64|wine-preloader|wine64-preloader)' | \
-    grep -iE '\.exe' | \
-    grep -viE "$wine_helpers" | \
-    grep -q .
+  [ -n "$(wine_game_pids)" ]
 }
 
 activate_game() {
   echo "=== activating game window ===" >> "$log" 2>&1 || true
-  # Keep full process arguments for the Wine helper exclusions below.
-  # shellcheck disable=SC2009
-  game_pid=$(ps -ww -eo pid,args 2>/dev/null | grep -iE '/(wine|wine64|wine-preloader|wine64-preloader)' | grep -iE '\.exe' | grep -viE "$wine_helpers" | awk '{print $1}' | head -1)
+  game_pid=$(wine_game_pids | sed -n '1p')
   if [ -n "$game_pid" ]; then
     swift - "$game_pid" << 'EOF' >> "$log" 2>&1 || osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $game_pid) to true" >> "$log" 2>&1 || true
 import AppKit

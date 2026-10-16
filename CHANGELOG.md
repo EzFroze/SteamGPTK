@@ -1,3 +1,10 @@
+# SteamGPTK 0.2.1 — 2026-10-16
+
+- Identify actual Wine game processes instead of matching renderer paths in launcher arguments.
+- Let closed game sessions finish while other launcher scripts remain, preventing those scripts from keeping one another alive and consuming CPU.
+- Use the same game-process selection for session lifetime and window activation.
+- Cover Windows executable paths, Wine helpers, wrapper exclusion and session completion with regression checks.
+
 # SteamGPTK 0.2.0 — 2026-10-15
 
 - Enable D9VK automatically for DirectX 8/9, including 32-bit games.

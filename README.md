@@ -77,7 +77,7 @@ The build pins Dobby and the bridge payload from SteamGPTK 0.1.2, verifies the a
 
 ```bash
 ./scripts/test-free-ui.sh
-make profilecheck compatcheck webpatch-fixtures compatsvc-check
+make profilecheck gamecheck compatcheck webpatch-fixtures compatsvc-check
 ```
 
 A separate, opt-in full installation test uses only a temporary runtime and your local GPTK image:

@@ -60,7 +60,7 @@ DEPS := $(OBJS:.o=.d)
         tests-list overlay-shim overlay-shim-install overlay-shim-tests \
         overlay-shim-bench iconmaker icon \
         appinfo helpers-install ntdll-resolve bridge runcheck compatcheck \
-        compatsvc-check scriptcheck profilecheck
+        compatsvc-check scriptcheck profilecheck gamecheck
 
 APP_PAYLOAD := app/Sources/SteamGPTKApp/Resources/payload
 
@@ -87,6 +87,9 @@ runcheck:
 
 profilecheck:
 	sh dylib/tests/profilecheck.sh dylib/feats/compat_run.sh
+
+gamecheck:
+	sh dylib/tests/gamecheck.sh dylib/feats/compat_run.sh
 
 # runcheck owns compat_run.sh, whose warnings wait for a change that can move
 # the embedded __text baseline
