@@ -19,7 +19,7 @@ while [ "$argi" -lt "$argc" ]; do
     NOTPROTON_*=*) arg="STEAMGPTK_${arg#NOTPROTON_}" ;;
   esac
   case "$arg" in
-    CX_GRAPHICS*=*|D3DM_*=*|DXMT_*=*|DXVK_*=*|MTL_*=*|STEAMGPTK_*=*|ROSETTA_*=*|WINE*=*)
+    CX_GRAPHICS*=*|D3DM_*=*|DXMT_*=*|DXVK_*=*|MTL_*=*|STEAMGPTK_*=*|ROSETTA_*=*|VK_*=*|WINE*=*)
       # shellcheck disable=SC2163 # arg is a NAME=VALUE pair, which export takes as an assignment
       export "$arg"
       launch_env="$launch_env $arg"
@@ -43,6 +43,36 @@ if [ -d "$CX_ROOT/Contents/Resources/wine" ]; then
   CX_ROOT="$CX_ROOT/Contents/Resources/wine"
   export CX_ROOT
 fi
+
+app_id="$STEAM_COMPAT_APP_ID"
+case "$app_id" in ''|0) app_id="$SteamAppId" ;; esac
+case "$app_id" in ''|0) app_id=$(basename "$STEAM_COMPAT_DATA_PATH" 2>/dev/null) ;; esac
+case "$app_id" in ''|*[!0-9]*) app_id=0 ;; esac
+
+# Built-in defaults, applied before runner.env selects the graphics backend.
+# Explicit Steam launch options always win. No per-game files in /tmp are used.
+apply_game_profile() {
+  game_profile=none
+  profile_steam32=0
+  [ "${STEAMGPTK_GAME_PROFILE:-1}" != 0 ] || return 0
+  [ -f "$CX_ROOT/runner.env" ] || return 0
+  case "$app_id" in
+    220)
+      game_profile=hl2-v1
+      profile_steam32=1
+      export CX_GRAPHICS_BACKEND="${CX_GRAPHICS_BACKEND-dxvk}"
+      export ROSETTA_ADVERTISE_AVX="${ROSETTA_ADVERTISE_AVX-0}"
+      export WINEDLLPATH_D9VK="${WINEDLLPATH_D9VK-$CX_ROOT/Frameworks/renderer/d9vk/wine}"
+      if [ -z "${VK_DRIVER_FILES+x}${VK_ICD_FILENAMES+x}" ]; then
+        export VK_DRIVER_FILES="$CX_ROOT/vulkan/icd.d/kosmickrisp_mesa_icd.json"
+      fi
+      if [ -z "${DXVK_CONFIG+x}${DXVK_CONFIG_FILE+x}" ]; then
+        export DXVK_CONFIG="d3d9.presentInterval = 0"
+      fi
+      ;;
+  esac
+}
+apply_game_profile
 
 # cxcompatdb resolves its database through CX_HOME and logs an error for
 # every module loaded without it :(
@@ -126,11 +156,14 @@ while :; do
 done
 export STEAM_COMPAT_INSTALL_PATH
 
-app_id="$STEAM_COMPAT_APP_ID"
-case "$app_id" in ''|0) app_id="$SteamAppId" ;; esac
-case "$app_id" in ''|0) app_id=$(basename "$STEAM_COMPAT_DATA_PATH" 2>/dev/null) ;; esac
-case "$app_id" in ''|*[!0-9]*) app_id=0 ;; esac
 echo "app_id=$app_id (STEAM_COMPAT_APP_ID=$STEAM_COMPAT_APP_ID)" >> "$log" 2>&1 || true
+echo "profile: $game_profile (STEAMGPTK_GAME_PROFILE=${STEAMGPTK_GAME_PROFILE:-1})" >> "$log" 2>&1 || true
+if [ "$game_profile" != none ]; then
+  {
+    echo "profile: backend=$CX_GRAPHICS_BACKEND D9VK=$WINEDLLPATH_D9VK"
+    echo "profile: Vulkan=${VK_DRIVER_FILES:-$VK_ICD_FILENAMES} DXVK_CONFIG=$DXVK_CONFIG DXVK_CONFIG_FILE=$DXVK_CONFIG_FILE"
+  } >> "$log" 2>&1 || true
+fi
 
 [ -n "$SteamAppId" ] || export SteamAppId="$app_id"
 [ -n "$SteamGameId" ] || export SteamGameId="$app_id"
@@ -531,6 +564,16 @@ if [ -d "$bridge_src" ] && [ -n "$WINEPREFIX" ]; then
     src="$bridge_src/$f"
     case "$f" in
       *.so) src="$bridge_src/${wine_unix##*/}/$f" ;;
+      steamclient.dll)
+        if [ "$profile_steam32" = 1 ]; then
+          src="$bridge_src/i386-windows/lsteamclient.dll"
+          if [ ! -f "$src" ]; then
+            echo "=== $game_profile needs the 32-bit Steam bridge; run Install / Repair in SteamGPTK ===" >> "$log" 2>&1 || true
+            exit 1
+          fi
+          echo "=== $game_profile: using the 32-bit Steam bridge ===" >> "$log" 2>&1 || true
+        fi
+        ;;
     esac
     if [ ! -f "$src" ]; then
       echo "=== bridge missing $f ===" >> "$log" 2>&1 || true
@@ -922,7 +965,7 @@ fi
 
 
 set -- --args "$shim_exe" "$@"
-for name in $(env | sed -nE 's/^(Steam[A-Za-z0-9]*|SikarugirApp[A-Za-z0-9]*|GST_PLUGIN_PATH|VK_DRIVER_FILES|WINEBOOT_HIDE_DIALOG|WINEESYNC|(CX_GRAPHICS|CX_D3DMETAL|CX_APPLEGPT|CX_FWD|WINEDLLPATH_|D3DM_|DXMT_|DXVK_|MVK_|MTL_|ROSETTA_)[A-Z0-9_]*)=.*/\1/p'); do
+for name in $(env | sed -nE 's/^(Steam[A-Za-z0-9]*|SikarugirApp[A-Za-z0-9]*|GST_PLUGIN_PATH|VK_DRIVER_FILES|VK_ICD_FILENAMES|WINEBOOT_HIDE_DIALOG|WINEESYNC|(CX_GRAPHICS|CX_D3DMETAL|CX_APPLEGPT|CX_FWD|WINEDLLPATH_|D3DM_|DXMT_|DXVK_|MVK_|MTL_|ROSETTA_)[A-Z0-9_]*)=.*/\1/p'); do
   eval "value=\$$name"
   # shellcheck disable=SC2154 # eval assigns value on the line above
   set -- --env "$name=$value" "$@"

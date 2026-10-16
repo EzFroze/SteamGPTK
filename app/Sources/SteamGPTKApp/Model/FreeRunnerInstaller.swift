@@ -75,6 +75,10 @@ enum FreeRunnerInstaller {
             throw StepFailure(step: step, detail: "The Wine launch script is missing from this application.")
         }
         let script = try Data(contentsOf: scriptURL)
+        // Validate the pinned bridge before changing the runtime. ValveFetcher
+        // retains its original DLLs; profiles select this separate bridge later.
+        let bridge32 = try SteamClient32Bridge.patched(Data(contentsOf:
+            payload.appending(path: "bridge/i386-windows-lsteamclient.dll")))
         let current = root.deletingLastPathComponent().appending(path: "current")
         if fm.fileExists(atPath: current.path),
            (try? fm.attributesOfItem(atPath: current.path)[.type] as? FileAttributeType) != .typeSymbolicLink {
@@ -82,6 +86,8 @@ enum FreeRunnerInstaller {
         }
         try VulkanDrivers.configure(root: root)
         _ = try BridgePayload.stage(located: BridgePayload.locate(root: payload.appending(path: "bridge")), bridge: bridge)
+        try atomicReplace(bridge.appending(path: "i386-windows/lsteamclient.dll"), with: bridge32, step: step)
+        try atomicReplace(root.appending(path: "lib/wine/i386-windows/lsteamclient.dll"), with: bridge32, step: step)
         if originalBytes != patchedBytes {
             let original = ntdll.appendingPathExtension("steamgptk-orig")
             if !fm.fileExists(atPath: original.path) { try fm.copyItem(at: ntdll, to: original) }
@@ -100,8 +106,15 @@ enum FreeRunnerInstaller {
             }
         }
         let env = FreeRuntime.environment(root: root).sorted(by: { $0.key < $1.key }).map { key, value in
-            if key == "ROSETTA_ADVERTISE_AVX" { return "export ROSETTA_ADVERTISE_AVX=\"${ROSETTA_ADVERTISE_AVX:-1}\"" }
-            return "export \(key)='" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+            let quoted = "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+            if ["ROSETTA_ADVERTISE_AVX", "WINEDLLPATH_D9VK"].contains(key) {
+                return "if [ -z \"${\(key)+x}\" ]; then export \(key)=\(quoted); fi"
+            }
+            if key == "VK_DRIVER_FILES" {
+                return "if [ -z \"${VK_DRIVER_FILES+x}${VK_ICD_FILENAMES+x}\" ]; then\n"
+                    + "  export VK_DRIVER_FILES=\(quoted)\nfi"
+            }
+            return "export \(key)=\(quoted)"
         }.joined(separator: "\n") + "\n" + """
         case "${CX_GRAPHICS_BACKEND:-d3dmetal}" in
           dxmt)

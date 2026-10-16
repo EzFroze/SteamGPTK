@@ -1,3 +1,11 @@
+# SteamGPTK 0.2.2 — 2026-10-16
+
+- Add the automatic Half-Life 2 profile (AppID 220): D9VK / KosmicKrisp, D3D9 VSync off, AVX advertisement off and the verified 32-bit Steam bridge.
+- Preserve explicit profile overrides and pass either Vulkan driver variable to the Wine app loader.
+- Recreate profiles during Install / Repair; keep original Valve files separate from the bridge selected for HL2.
+- Validate and install the pinned i386 bridge, detect a missing or damaged runtime copy, and repair bridge corruption even when file sizes match.
+- Cover automatic launch settings, user overrides, opt-out, unprofiled games and repeated setup followed by Valve installation with regression tests.
+
 # SteamGPTK 0.2.1 — 2026-10-16
 
 - Identify actual Wine game processes instead of matching renderer paths in launcher arguments.

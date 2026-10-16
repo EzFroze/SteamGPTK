@@ -52,6 +52,14 @@ For an existing installation, quit Steam and Wine games, open the new app and cl
 
 Vulkan driver paths are corrected during setup and repair. The first D9VK launch can take longer while graphics caches are created. Game performance must be checked during gameplay; menu FPS is not a benchmark.
 
+## Automatic game profiles
+
+Starting with version 0.2.2, SteamGPTK includes an automatic **Half-Life 2** profile (Steam AppID `220`): D9VK 3.1.1-async with KosmicKrisp, D3D9 VSync off, AVX advertisement off, and the verified 32-bit Steam bridge. The profile applies when the Windows game starts through SteamGPTK; no launch options or temporary configuration files are needed. Install / Repair reinstalls the profile and prepares the bridge without changing Valve's original downloaded DLLs.
+
+Explicit launch options override profile settings. `DXVK_CONFIG_FILE` selects your own DXVK config instead of the profile's inline VSync setting. Use `STEAMGPTK_GAME_PROFILE=0` to disable the profile for one game. No profile is applied to other AppIDs, and native macOS launches keep their existing route.
+
+Profiles leave resolution, game graphics settings, Steam Cloud and graphics caches alone. First-time shader compilation can still cause stutter. The HL2 configuration was tested on M1 Pro with Wine 11 and macOS 27.0.1; performance on other configurations is not established. See [profile details and adding another game](docs/GAME_PROFILES.ru.md).
+
 ## Steam Cloud
 
 The launch script unifies Wine's account profile with `steamuser`, so Steam's Windows cloud-save roots and the game resolve to the same files. Conflicting existing saves are not silently overwritten; the launch stops and records the conflict for resolution.

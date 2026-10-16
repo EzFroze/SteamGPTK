@@ -86,6 +86,9 @@ enum FreeRuntime {
         for file in ["lib/wine/x86_64-windows/lsteamclient.dll", "lib/wine/x86_64-unix/lsteamclient.so"] {
             if !fm.fileExists(atPath: root.appending(path: file).path) { problems.append("\(file) is missing") }
         }
+        if Digest.sha256IfPresent(root.appending(path: "lib/wine/i386-windows/lsteamclient.dll")) != SteamClient32Bridge.patchedSHA256 {
+            problems.append("The 32-bit Steam bridge needs repair")
+        }
         if problems.isEmpty, !loaderWorks(root: root) { problems.append("Wine cannot load its support libraries") }
         return problems
     }

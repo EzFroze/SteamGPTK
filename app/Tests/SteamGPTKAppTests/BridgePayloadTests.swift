@@ -66,8 +66,8 @@ struct BridgePayloadTests {
         }
     }
 
-    @Test("Files at the correct size are left alone on a second run")
-    func skipsMatchingSize() throws {
+    @Test("Byte-identical files are left alone on a second run")
+    func skipsIdenticalFiles() throws {
         let work = try scratch()
         defer { try? FileManager.default.removeItem(at: work) }
 
@@ -79,9 +79,27 @@ struct BridgePayloadTests {
         let second = try BridgePayload.stage(located: located, bridge: bridge)
 
         #expect(!first.staged.isEmpty)
-        #expect(second.staged.isEmpty, "files were re-staged despite matching size")
+        #expect(second.staged.isEmpty, "identical files were re-staged")
         let allPaths = BridgePayload.entries.flatMap(\.bridgePaths)
         #expect(second.unchanged.count == allPaths.count)
+    }
+
+    @Test("Repair replaces corrupted bridge bytes even when the file size has not changed")
+    func repairsSameSizeCorruption() throws {
+        let work = try scratch()
+        defer { try? FileManager.default.removeItem(at: work) }
+        let root = try fakeResources(in: work)
+        let located = try BridgePayload.locate(root: root)
+        let bridge = work.appending(path: "staged")
+        _ = try BridgePayload.stage(located: located, bridge: bridge)
+        let path = "i386-windows/lsteamclient.dll"
+        let destination = bridge.appending(path: path)
+        var damaged = try Data(contentsOf: destination)
+        damaged[0] ^= 0xff
+        try damaged.write(to: destination)
+        let repair = try BridgePayload.stage(located: located, bridge: bridge)
+        #expect(repair.staged == [path])
+        #expect(try Data(contentsOf: destination) == Data(contentsOf: root.appending(path: "i386-windows-lsteamclient.dll")))
     }
 
     @Test("Flat and arch copies are byte-identical")
