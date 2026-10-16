@@ -4,7 +4,7 @@ Run Windows games from the **native macOS Steam client**, using **Sikarugir Wine
 
 SteamGPTK is a community fork of [NotProton](https://github.com/NotProtonNot/NotProton). It is not affiliated with Apple, Valve, or CodeWeavers.
 
-[Инструкция на русском](docs/INSTALL.ru.md) · [Maintainer / release guide](docs/PUBLISHING.md) · [Changes](CHANGELOG.md)
+[Инструкция на русском](docs/INSTALL.ru.md) · [Half-Life 2: быстрый старт](docs/HL2_QUICKSTART.ru.md) · [Maintainer / release guide](docs/PUBLISHING.md) · [Changes](CHANGELOG.md)
 
 ## Requirements
 
