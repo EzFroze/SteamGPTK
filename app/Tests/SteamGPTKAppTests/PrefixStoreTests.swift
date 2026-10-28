@@ -5,6 +5,65 @@ import Testing
 
 @Suite("Prefix store")
 struct PrefixStoreTests {
+    @Test("A claim keeps the preparation lock until it is released")
+    func claimHoldsThePreparationLock() throws {
+        let dir = try scratchDirectory("pfx-claim")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let prefix = try prefix(in: dir)
+        let root = dir.appending(path: "sockets")
+
+        let claim = try #require(PrefixStore.claim(prefix, root: root))
+        #expect(PrefixStore.isInUse(prefix, root: root))
+        #expect(PrefixStore.claim(prefix, root: root) == nil)
+        claim.release()
+        #expect(!PrefixStore.isInUse(prefix, root: root))
+    }
+
+
+    @Test("A quote inside the name survives the manifest's escaping")
+    func readsAnEscapedAppName() throws {
+        let dir = try scratchDirectory("pfx")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let library = SteamLibrary(root: dir)
+
+        try FileManager.default.createDirectory(
+            at: library.compatdata.appending(path: "5102100/pfx"), withIntermediateDirectories: true)
+        try write(
+            """
+            "AppState"
+            {
+            \t"appid"\t\t"5102100"
+            \t"name"\t\t"Rideshare \\"Stimulator\\" Demo"
+            \t"installdir"\t\t"RideshareStimulatorDemo"
+            }
+            """, to: library.steamapps.appending(path: "appmanifest_5102100.acf"))
+
+        let prefix = PrefixStore.all(libraries: [library]).first { $0.appID == "5102100" }
+        #expect(prefix?.name == "Rideshare \"Stimulator\" Demo")
+    }
+
+    @Test("Newline, tab and backslash escapes in the name are decoded")
+    func decodesManifestEscapes() throws {
+        let dir = try scratchDirectory("pfx")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let library = SteamLibrary(root: dir)
+
+        try FileManager.default.createDirectory(
+            at: library.compatdata.appending(path: "5102101/pfx"), withIntermediateDirectories: true)
+        try write(
+            """
+            "AppState"
+            {
+            \t"appid"\t\t"5102101"
+            \t"name"\t\t"One\\nTwo\\tThree\\\\Four\\qFive"
+            }
+            """, to: library.steamapps.appending(path: "appmanifest_5102101.acf"))
+
+        let prefix = PrefixStore.all(libraries: [library]).first { $0.appID == "5102101" }
+        #expect(prefix?.name == "One\nTwo\tThree\\Four\\qFive")
+    }
+
+
 
     private func tempDirectory() throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appending(path: "np-pfx-\(UUID().uuidString)")

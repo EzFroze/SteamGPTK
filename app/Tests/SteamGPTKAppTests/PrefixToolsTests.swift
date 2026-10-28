@@ -361,6 +361,26 @@ struct PrefixToolsTests {
         return try #require(PrefixStore.all(libraries: [library]).first)
     }
 
+    @Test("A launch cannot start while a rebuild is running")
+    func rebuildHoldsThePrefixLock() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appending(path: "np-rebuild-lock-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: dir) }
+        let home = dir.appending(path: "home")
+        try fm.createDirectory(at: home, withIntermediateDirectories: true)
+        let prefix = try usedPrefix(in: dir, home: home)
+        let lock = prefix.root.appending(path: ".steamgptk-prefix.lock").path(percentEncoded: false)
+        let launched = dir.appending(path: "launched")
+        let runner = try fakeRunner(
+            in: dir, home: home,
+            extra: "/usr/bin/lockf -s -t 0 '\(lock)' touch '\(launched.path(percentEncoded: false))' || :")
+
+        try PrefixTools.recreate(prefix, runner: runner)
+
+        #expect(!fm.fileExists(atPath: launched.path(percentEncoded: false)))
+        #expect(!PrefixStore.isInUse(prefix, root: dir.appending(path: "sockets")))
+    }
+
     // Why a rebuild is offered instead of a delete: the arch specific half only arrives with
     // the template, while the profile has nothing arch specific and is what a player misses.
     @Test("A rebuild keeps the Windows user profile and replaces everything else")
@@ -1293,6 +1313,32 @@ struct PrefixToolsTests {
 
         let pfx = SteamLibrary(root: dir).compatdata.appending(path: "1574480/pfx")
         let parked = pfx.appending(path: "drive_c/users/steamuser/Saves BACKUP/game.sav")
+        #expect(try String(contentsOf: parked, encoding: .utf8) == "progress")
+    }
+
+    @Test("A similarly named sibling directory is outside the rebuilt prefix")
+    func siblingLandingDoesNotOverwriteOutsideFiles() throws {
+        let fm = FileManager.default
+        let dir = URL(filePath: fm.temporaryDirectory.path(percentEncoded: false))
+            .appending(path: "np-sibling-escape-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: dir) }
+        let home = dir.appending(path: "home/Documents")
+        try fm.createDirectory(at: home, withIntermediateDirectories: true)
+        let prefix = try usedPrefix(in: dir, home: home)
+        let old = prefix.pfx.appending(path: "drive_c/users/crossover/Saves/game.sav")
+        try fm.createDirectory(at: old.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("progress".utf8).write(to: old)
+        let runner = try fakeRunner(in: dir, home: home, extra: """
+                mkdir -p "$WINEPREFIX-outside"
+                printf untouched > "$WINEPREFIX-outside/game.sav"
+                ln -s "$WINEPREFIX-outside" "$WINEPREFIX/drive_c/users/steamuser/Saves"
+                """)
+        try PrefixTools.recreate(prefix, runner: runner)
+
+        let root = SteamLibrary(root: dir).compatdata.appending(path: "1574480")
+        let outside = root.appending(path: "pfx.rebuild-outside/game.sav")
+        let parked = root.appending(path: "pfx/drive_c/users/steamuser/Saves BACKUP/game.sav")
+        #expect(try String(contentsOf: outside, encoding: .utf8) == "untouched")
         #expect(try String(contentsOf: parked, encoding: .utf8) == "progress")
     }
 

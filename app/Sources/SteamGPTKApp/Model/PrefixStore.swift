@@ -1,5 +1,6 @@
 // Logic for Prefix menu, not great, could use some improvements
 
+import Darwin
 import Foundation
 
 struct SteamLibrary: Sendable, Hashable {
@@ -147,8 +148,18 @@ enum PrefixStore {
         let manifest = library.steamapps.appending(path: "appmanifest_\(appID).acf")
         guard let text = try? String(contentsOf: manifest, encoding: .utf8) else { return nil }
         for line in text.split(separator: "\n") {
-            let fields = line.split(separator: "\"").map(String.init)
-                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            // Steam escapes \" \\ \n and \t inside quoted values.
+            let fields = line.matches(of: #/"((?:[^"\\]|\\.)*)"/#)
+                .map {
+                    String($0.1).replacing(#/\\(.)/#) { escape -> String in
+                        switch escape.1 {
+                        case "n": "\n"
+                        case "t": "\t"
+                        case "\\", "\"": String(escape.1)
+                        default: String(escape.0)
+                        }
+                    }
+                }
             if fields.count >= 2, fields[0] == key { return fields[1] }
         }
         return nil
@@ -261,6 +272,50 @@ enum PrefixStore {
         _ prefix: WinePrefix, root: URL = serverRoot, lsof: String = "/usr/sbin/lsof",
         drainTimeout: DispatchTimeInterval = .seconds(2)
     ) -> Bool {
+        let lock = open(lockPath(of: prefix), O_RDWR | O_NOFOLLOW | O_CLOEXEC)
+        if lock >= 0 {
+            defer { PrefixClaim(fd: lock).release() }
+            guard locked(lock) else { return true }
+        } else if errno != ENOENT {
+            return true
+        }
+        return serverIsBusy(prefix, root: root, lsof: lsof, drainTimeout: drainTimeout)
+    }
+
+    // A launch takes this lock while it sets the prefix up. Holding it stops a launch from
+    // starting partway through a rebuild/delete.
+    static func claim(
+        _ prefix: WinePrefix, root: URL = serverRoot, lsof: String = "/usr/sbin/lsof",
+        drainTimeout: DispatchTimeInterval = .seconds(2)
+    ) -> PrefixClaim? {
+        let lock = open(lockPath(of: prefix), O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard lock >= 0 else {
+            guard errno == ENOENT,
+                !serverIsBusy(prefix, root: root, lsof: lsof, drainTimeout: drainTimeout)
+            else { return nil }
+            return PrefixClaim(fd: -1)
+        }
+        guard locked(lock), !serverIsBusy(prefix, root: root, lsof: lsof, drainTimeout: drainTimeout)
+        else {
+            PrefixClaim(fd: lock).release()
+            return nil
+        }
+        return PrefixClaim(fd: lock)
+    }
+
+    private static func lockPath(of prefix: WinePrefix) -> String {
+        prefix.root.appending(path: ".steamgptk-prefix.lock").path(percentEncoded: false)
+    }
+
+    private static func locked(_ fd: Int32) -> Bool {
+        var info = stat()
+        return fstat(fd, &info) == 0 && info.st_mode & S_IFMT == S_IFREG
+            && flock(fd, LOCK_EX | LOCK_NB) == 0
+    }
+
+    private static func serverIsBusy(
+        _ prefix: WinePrefix, root: URL, lsof: String, drainTimeout: DispatchTimeInterval
+    ) -> Bool {
         guard let dir = serverDirectory(of: prefix, root: root),
             FileManager.default.fileExists(atPath: dir.path(percentEncoded: false))
         else { return false }
@@ -272,5 +327,16 @@ enum PrefixStore {
         if !result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
 
         return result.outputLost || !result.stderr.isEmpty
+    }
+}
+
+struct PrefixClaim {
+    fileprivate let fd: Int32
+
+    func release() {
+        if fd >= 0 {
+            _ = flock(fd, LOCK_UN)
+            close(fd)
+        }
     }
 }

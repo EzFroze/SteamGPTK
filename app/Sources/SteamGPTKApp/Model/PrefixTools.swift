@@ -172,12 +172,13 @@ enum PrefixTools {
     }
 
     static func delete(_ prefix: WinePrefix) throws {
-        guard !PrefixStore.isInUse(prefix) else {
+        guard let claim = PrefixStore.claim(prefix) else {
             throw StepFailure(
                 step: "Delete prefix",
                 detail: "\(prefix.title) is running. Quit the game first."
             )
         }
+        defer { claim.release() }
         try WriteRefused.catching(prefix.root) {
             try FileManager.default.removeItem(at: prefix.root)
         }

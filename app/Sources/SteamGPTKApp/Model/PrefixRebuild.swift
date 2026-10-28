@@ -11,12 +11,14 @@ extension PrefixTools {
         now: Date = .now,
         keepBackup: Bool = true
     ) throws -> URL? {
-        guard !PrefixStore.isInUse(prefix) else {
+        guard let claim = PrefixStore.claim(prefix) else {
             throw StepFailure(
                 step: "Recreate prefix",
                 detail: "\(prefix.title) is running. Quit the game first."
             )
         }
+
+        defer { claim.release() }
 
         if let held = PrefixStore.backups(of: prefix).last,
             !FileManager.default.fileExists(
@@ -87,13 +89,14 @@ extension PrefixTools {
 
     @discardableResult
     static func backUp(_ prefix: WinePrefix, now: Date = .now) throws -> URL {
-        guard !PrefixStore.isInUse(prefix) else {
+        guard let claim = PrefixStore.claim(prefix) else {
             throw StepFailure(
                 step: "Back up prefix",
                 detail: "\(prefix.title) is running. Quit the game first."
             )
         }
 
+        defer { claim.release() }
         let fm = FileManager.default
         guard fm.fileExists(atPath: prefix.pfx.path(percentEncoded: false)) else {
             throw StepFailure(
@@ -293,8 +296,8 @@ private final class Carry {
     private func escapes(_ landing: URL) -> Bool {
         let values = try? landing.resourceValues(forKeys: [.isSymbolicLinkKey])
         guard values?.isSymbolicLink == true else { return false }
-        let inside = fresh.resolvingSymlinksInPath().path(percentEncoded: false)
-        return !landing.resolvingSymlinksInPath().path(percentEncoded: false).hasPrefix(inside)
+        let inside = fresh.resolvingSymlinksInPath().pathComponents
+        return !landing.resolvingSymlinksInPath().pathComponents.starts(with: inside)
     }
 
     private func directoryExists(_ url: URL) -> Bool {
