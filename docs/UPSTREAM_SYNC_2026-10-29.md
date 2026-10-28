@@ -18,7 +18,7 @@ Branch: `codex/upstream-launch-steam-overlay`, based on SteamGPTK 0.2.2 (`47b3d2
 | `cfe0194` | Avoid assigning a store AppID to non-Steam shortcuts and installation helpers; keep the shortcut GameID. |
 | `2791679`, `886105c`, `a479c84` (existing launch boundaries) | Correct Retina DPI transitions, batch prefix settings into one import and skip unchanged current settings. Reuse unchanged launcher bundles, batch symlink creation, `exec` the game loader and avoid redundant LaunchServices registration. |
 
-Launcher bundle comparison falls back for older installed helpers, compares bytes rather than timestamps, and refuses a failed directory read. Bundle replacement retains the upstream rollback behavior. Background launch descendants do not inherit the prefix preparation lock.
+Launcher bundle comparison falls back for older installed helpers and compares bytes rather than timestamps. Bundle replacement retains the upstream rollback behavior. Background launch descendants do not inherit the prefix preparation lock. A first launch creates its compatdata root before opening the lock, and the launcher releases the parent lock before displaying a terminal prefix-rebuild alert.
 
 ## Preserved and excluded
 
@@ -31,8 +31,14 @@ This is not a full upstream merge. CrossOver/FEX build support, plugin and CEG s
 - Swift: 408 tests in 56 suites pass, including real Wine rebuild and automatic HL2 profile/repair integration.
 - Native: signature, JS fixtures/panel behavior, compat/compatsvc, Steam Cloud profile, spawn environment, game session, launch settings, bundle reuse/rollback, activation, shell syntax/lint checks pass.
 - Metal overlay: 8 tests pass across arm64/x86_64, with no skips when run with device access.
-- Launch helper fixtures cover VC++ selection, shortcut IDs, DPI transitions, unchanged settings, preparation locks, unchanged bundle reuse and failed replacement rollback.
+- Launch helper fixtures cover VC++ selection, shortcut IDs, DPI transitions, unchanged settings, preparation locks, first launch without a compatdata root, parent lock release before a rebuild prompt, unchanged bundle reuse and failed replacement rollback.
 
 The initial real-Wine baseline test was blocked by an existing empty `/tmp/.wine-501` directory with mode 0755. Its ownership, directory type and emptiness were checked before restoring Wine's required mode 0700; the real test then passed. Installed Steam/game configuration and saves were not changed by this transfer. No game FPS or frame-pacing improvement is claimed without a live comparison.
 
-Build/resource verification and independent review results are recorded below when complete.
+## Review and build
+
+A fresh independent review found two important launch-lock edge cases. Both were reproduced by behavioral tests before applying the fixes: create the first-launch compatdata directory before opening the lock, and close the parent's preparation lock before showing a terminal rebuild alert. Both tests now pass.
+
+One minor finding is deferred: when `appinfo` is missing, outdated or reports a read error, the shell bundle-comparison fallback can lose a nested `find` permission error and keep an unreadable Resources directory. This affects the unreadable-directory edge case; normal bundle comparison, replacement and rollback are covered by passing tests. This is not treated as an FPS fix.
+
+The development app builds successfully. Deep strict code-signature validation and `--check-resources` pass after relocating the app to another temporary directory. The application remains version 0.2.2; no release, installation, push or main merge is part of this branch.

@@ -120,6 +120,7 @@ export DYLD_FALLBACK_LIBRARY_PATH="$CX_ROOT/lib/deps:$CX_ROOT/lib/external:${DYL
 [ -f "$CX_ROOT/runner.env" ] && . "$CX_ROOT/runner.env"
 
 if [ -n "$STEAM_COMPAT_DATA_PATH" ]; then
+  [ -d "$STEAM_COMPAT_DATA_PATH" ] || mkdir -p "$STEAM_COMPAT_DATA_PATH"
   log="$STEAM_COMPAT_DATA_PATH/steamgptk-run.log"
 else
   log=/dev/null
@@ -186,6 +187,7 @@ without_lock_fds() {
 
 claim_prefix() {
   [ -n "$STEAM_COMPAT_DATA_PATH" ] || return 0
+  [ -d "$STEAM_COMPAT_DATA_PATH" ] || mkdir -p "$STEAM_COMPAT_DATA_PATH" || return 1
   lock_file="$STEAM_COMPAT_DATA_PATH/.steamgptk-prefix.lock"
   [ ! -L "$lock_file" ] || return 1
   [ ! -e "$lock_file" ] || [ -f "$lock_file" ] || return 1
@@ -236,7 +238,9 @@ refuse_foreign_prefix() {
   echo "=== prefix ntdll is $have and this compatibility tool wants $want, rebuild the prefix in SteamGPTK ===" >> "$log" 2>&1 || true
 
   if [ "$verb" != run ]; then
-    without_lock_fds osascript >/dev/null 2>&1 <<APPLESCRIPT || true
+    # The user must be able to rebuild while this terminal refusal is displayed.
+    exec 8>&- 9>&-
+    osascript >/dev/null 2>&1 <<APPLESCRIPT || true
 display alert "This game needs its prefix rebuilt" message "This game originally ran under $(tool_name "$have"), but $(tool_name "$want") is present now. The prefix needs to be rebuilt in SteamGPTK in order to run the game. You will not lose game saves by rebuilding the prefix." as critical
 APPLESCRIPT
   fi

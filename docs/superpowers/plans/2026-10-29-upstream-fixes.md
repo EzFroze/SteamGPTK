@@ -1,6 +1,6 @@
 # Selected Upstream Fixes Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Port the selected launch, Steam and overlay fixes onto a separate SteamGPTK branch and verify the application build and tests.
 
@@ -55,7 +55,7 @@
 - [x] Import/adapt behavioral tests for `6bf5cae`, `cfe0194`, `2791679`, `886105c`, `a479c84` at existing script boundaries; check the default HL2 path and manual overrides with the existing integration tests.
 - [x] Run focused checks against the old script and record failures.
 - [x] Port the minimal compatible implementations, including launch-alert exit from `08467be`, with no new hidraw/plugin/defaults subsystem. Synchronize the packaged launcher.
-- [ ] Run full Swift/native/lint checks and build a relocated application with `scripts/build-free-ui.sh`; run packaged-resource and signature verification.
-- [ ] Document upstream source commits, adapted/omitted portions, results and limitations; commit.
-- [ ] Obtain a fresh whole-branch review and address important findings with regression tests.
-- [ ] Verify the branch is clean and report the branch, artifact path, checks and any remaining limitations. Keep it local.
+- [x] Run full Swift/native/lint checks and build a relocated application with `scripts/build-free-ui.sh`; run packaged-resource and signature verification.
+- [x] Document upstream source commits, adapted/omitted portions, results and limitations; commit.
+- [x] Obtain a fresh whole-branch review and address important findings with regression tests.
+- [x] Verify the branch is clean and report the branch, artifact path, checks and any remaining limitations. Keep it local.

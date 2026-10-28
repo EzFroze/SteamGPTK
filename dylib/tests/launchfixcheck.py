@@ -102,6 +102,33 @@ echo released
         self.assertEqual(got, 'released')
         self.assertFalse(marker.exists())
 
+    def test_preparation_creates_first_launch_compatdata_directory(self):
+        fresh = self.root / 'new-library/steamapps/compatdata/220'
+        self.run_helpers(['claim_prefix'], 'claim_prefix', STEAM_COMPAT_DATA_PATH=str(fresh))
+        self.assertTrue((fresh / '.steamgptk-prefix.lock').is_file())
+
+    def test_refused_prefix_releases_lock_before_rebuild_prompt(self):
+        dll = self.pfx / 'drive_c/windows/system32/ntdll.dll'
+        pe = bytearray(128)
+        pe[60:64] = (64).to_bytes(4, 'little')
+        pe[64:70] = b'PE\x00\x00\x4c\x01'
+        dll.write_bytes(pe)
+        bin_dir = self.root / 'bin'
+        bin_dir.mkdir()
+        prompt = bin_dir / 'osascript'
+        prompt.write_text('''#!/bin/sh
+cat >/dev/null
+/usr/bin/lockf -s -t 0 "$STEAM_COMPAT_DATA_PATH/.steamgptk-prefix.lock" touch "$REBUILD_ALLOWED"
+''')
+        prompt.chmod(0o755)
+        marker = self.root / 'rebuild-allowed'
+        self.run_helpers(['claim_prefix', 'without_lock_fds', 'prefix_machine', 'tool_name', 'refuse_foreign_prefix'], '''
+if (claim_prefix; refuse_foreign_prefix); then exit 1; fi
+test -f "$REBUILD_ALLOWED"
+''', wine_unix='/runner/lib/wine/x86_64-unix', verb='waitforexitandrun',
+                         PATH=str(bin_dir) + ':' + self.env['PATH'], REBUILD_ALLOWED=str(marker))
+        self.assertTrue(marker.exists())
+
     def test_registry_import_preserves_helper_video_settings(self):
         calls = self.root / 'calls'
         imported = self.root / 'imported.reg'
