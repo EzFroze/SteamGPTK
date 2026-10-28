@@ -49,6 +49,8 @@ jobs:
           make -s compatsvc-check
           make -s profilecheck
           make -s spawn-env
+          make -s activatecheck
+          make -s overlay-shim-tests
 
       - name: Run Swift tests without a user GPTK image
         run: |

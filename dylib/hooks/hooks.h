@@ -63,5 +63,6 @@ int np_hooks_env_lists_label(const char *var, const char *label);
 // Resolved from libc rather than the signature database, and installed before the client
 // can spawn anything, so this one does not wait for steamclient the way the rest do.
 void np_hooks_spawn_install(void);
+void np_hooks_activate_install(void);
 
 #endif // STEAMGPTK_HOOKS_HOOKS_H

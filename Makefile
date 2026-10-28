@@ -36,6 +36,7 @@ SRCS := \
 	dylib/hooks/hook_webui.c \
 	dylib/hooks/hook_webpatch.c \
 	dylib/hooks/hook_spawn.c \
+	dylib/hooks/hook_activate.c \
 	dylib/feats/compat.c \
 	dylib/feats/webui.c \
 	dylib/feats/compatsvc.c \
@@ -60,7 +61,13 @@ DEPS := $(OBJS:.o=.d)
         tests-list overlay-shim overlay-shim-install overlay-shim-tests \
         overlay-shim-bench iconmaker icon \
         appinfo helpers-install ntdll-resolve bridge runcheck compatcheck \
-        compatsvc-check scriptcheck profilecheck gamecheck
+        compatsvc-check scriptcheck profilecheck gamecheck activatecheck
+
+activatecheck:
+	@mkdir -p $(OUT_DIR)
+	$(CC) -arch $(ARCH) -mmacosx-version-min=$(MIN_VER) -O1 -Wall -Wextra \
+	  -Wno-unused-parameter -o $(OUT_DIR)/activatecheck dylib/tests/activatecheck.c -framework AppKit -lobjc
+	$(OUT_DIR)/activatecheck
 
 APP_PAYLOAD := app/Sources/SteamGPTKApp/Resources/payload
 
@@ -348,7 +355,7 @@ overlay-shim-tests: $(OVERLAY_SHIM)
 		$(call SKIP,overlay-shim-tests,$(OVERLAY_SHIM_TESTS)); exit 0; fi; \
 	mkdir -p $(OUT_DIR); \
 	fail=0; ran=0; skipped=0; \
-	for t in device bridge delivery; do \
+	for t in device bridge delivery ownership; do \
 		for a in arm64 x86_64; do \
 			$(CC) -arch $$a $(OVERLAY_SHIM_TEST_FLAGS) -o $(OUT_DIR)/$$t.$$a \
 				$(OVERLAY_SHIM_TESTS)/$$t.m || exit 1; \

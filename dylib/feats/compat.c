@@ -3,6 +3,7 @@
 #include "../util/log.h"
 #include "../util/file.h"
 
+#include <dlfcn.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -479,9 +480,25 @@ void np_compat_map_tool(void *compat_mgr, uint32_t appid, const char *tool_name)
 
 typedef void (*fn_YldRegisterTool)(void *compat_mgr, void *tool);
 static fn_YldRegisterTool g_yld_register_tool;
+typedef void (*fn_PlatFree)(void *ptr);
+static fn_PlatFree g_free_tool_path;
 
 void np_compat_set_register_fn(uintptr_t yld_register_tool) {
     g_yld_register_tool = (fn_YldRegisterTool)yld_register_tool;
+    g_free_tool_path = (fn_PlatFree)dlsym(RTLD_DEFAULT, "Plat_Free");
+    if (!g_free_tool_path)
+        NP_WARN("np_compat_set_register_fn: Plat_Free unresolved, temporary tool paths will leak");
+}
+
+static void free_tool_paths(uint8_t *tool) {
+    // YldRegisterTool writes caller-owned CUtlStrings, using Steam's allocator.
+    static const uint32_t offsets[] = {0x98, 0xA0, 0xA8, 0xD0, 0xD8, 0xE0, 0xE8, 0x118};
+    if (!g_free_tool_path) return;
+    for (size_t i = 0; i < sizeof(offsets) / sizeof(*offsets); i++) {
+        void **path = (void **)(tool + np_compat_tool_off(offsets[i]));
+        if (*path) g_free_tool_path(*path);
+        *path = NULL;
+    }
 }
 
 static void *g_manager;
@@ -512,8 +529,7 @@ void np_compat_register_crossover(void *compat_mgr) {
         return;
     }
 
-    // YldRegisterTool copies a whole entry out of this buffer and keeps the string
-    // pointers as-is, which is why the strings are static and why the buffer carries
+    // YldRegisterTool copies the entry and its strings. The buffer carries
     // headroom for a client that inserted a field. to_oslist=macos passes the
     // registration gate, from_oslist=windows intersects the app mask so the dropdown
     // keeps it, and appid 0 marks a manager-local tool the resolver routes to the
@@ -537,6 +553,7 @@ void np_compat_register_crossover(void *compat_mgr) {
 
     registered = 1;
     g_yld_register_tool(compat_mgr, tool);
+    free_tool_paths(tool);
     NP_LOG("np_compat_register_crossover: registered %s into manager 0x%llx",
            name, (unsigned long long)(uintptr_t)compat_mgr);
 }

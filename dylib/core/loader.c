@@ -257,6 +257,7 @@ static void np_init(void) {
     np_log_platform_overrides();
     np_compat_export_tools_path();
     np_hooks_spawn_install();
+    np_hooks_activate_install();
 
     if (pthread_create(&g_install, NULL, install_thread, NULL) == 0)
         g_install_started = 1;

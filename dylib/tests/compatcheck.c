@@ -1,7 +1,12 @@
 // The layout probes read instruction words straight out of the client, and everything else
 // reaches it through a function pointer an installer sets. Including the unit rather than
 // linking points the probes at synthesised instructions and the pointers at stubs. No Steam.
+#include <dlfcn.h>
+static void *registration_dlsym(void *, const char *);
+#define dlsym registration_dlsym
 #include "../feats/compat.c"
+#undef dlsym
+#include <sys/wait.h>
 
 #include <stdio.h>
 
@@ -267,12 +272,74 @@ static void installed_fn_cases(void) {
     check(last_priority == 0, "mapping an app to no tool at all reaches the client as nothing");
 }
 
+static const uint32_t owned_path_offsets[] = {0x98, 0xA0, 0xA8, 0xD0, 0xD8, 0xE0, 0xE8, 0x118};
+static char *temporary_paths[8], *copied_paths[8];
+static int freed_paths, register_calls, allocator_missing;
+
+static void steam_free(void *ptr) {
+    for (int i = 0; i < 8; i++) {
+        if (ptr && temporary_paths[i] == ptr) {
+            free(ptr);
+            temporary_paths[i] = NULL;
+            freed_paths++;
+            return;
+        }
+    }
+    check(0, "Steam's allocator receives only an owned path, once");
+}
+
+static void *registration_dlsym(void *handle, const char *name) {
+    check(handle == RTLD_DEFAULT && !strcmp(name, "Plat_Free"), "resolve the Steam deallocator");
+    return allocator_missing ? NULL : (void *)steam_free;
+}
+
+static void register_with_paths(void *mgr, void *source) {
+    (void)mgr;
+    register_calls++;
+    for (int i = 0; i < 8; i++) {
+        temporary_paths[i] = strdup("/prefix/steamuser");
+        *(char **)((uint8_t *)source + owned_path_offsets[i] + g_tool_shift) = temporary_paths[i];
+        // Steam keeps its own copy rather than owning the caller's strings.
+        copied_paths[i] = strdup(temporary_paths[i]);
+    }
+}
+
+static void registration_ownership(void) {
+    for (int shift = 0; shift <= 64; shift += 8) {
+        for (int missing = 0; missing <= 1; missing++) {
+            pid_t child = fork();
+            if (child == 0) {
+                failures = 0;
+                g_tool_shift = shift;
+                allocator_missing = missing;
+                build_manager(0, -1);
+                np_compat_set_register_fn((uintptr_t)register_with_paths);
+                np_compat_register_crossover(manager);
+                check(register_calls == 1, "register the missing free tool once");
+                check(freed_paths == (missing ? 0 : 8), "free each temporary path with Steam's allocator");
+                for (int i = 0; i < 8; i++) {
+                    check(!strcmp(copied_paths[i], "/prefix/steamuser"), "the manager's path copies survive");
+                    free(copied_paths[i]);
+                    free(temporary_paths[i]);
+                }
+                np_compat_register_crossover(manager);
+                check(register_calls == 1, "repeated compatibility queries do not register again");
+                _exit(failures ? 1 : 0);
+            }
+            int status = 0;
+            check(child > 0 && waitpid(child, &status, 0) == child && WIFEXITED(status)
+                  && WEXITSTATUS(status) == 0, "registration ownership across client layouts");
+        }
+    }
+}
+
 int main(void) {
     probe_cases();
     oslist_cases();
     enabled_cases();
     manager_cases();
     installed_fn_cases();
+    registration_ownership();
 
     if (failures) {
         printf("==> compat: %d check(s) failed\n", failures);
