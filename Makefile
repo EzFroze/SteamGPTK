@@ -63,12 +63,6 @@ DEPS := $(OBJS:.o=.d)
         appinfo helpers-install ntdll-resolve bridge runcheck compatcheck \
         compatsvc-check scriptcheck profilecheck gamecheck activatecheck
 
-activatecheck:
-	@mkdir -p $(OUT_DIR)
-	$(CC) -arch $(ARCH) -mmacosx-version-min=$(MIN_VER) -O1 -Wall -Wextra \
-	  -Wno-unused-parameter -o $(OUT_DIR)/activatecheck dylib/tests/activatecheck.c -framework AppKit -lobjc
-	$(OUT_DIR)/activatecheck
-
 APP_PAYLOAD := app/Sources/SteamGPTKApp/Resources/payload
 
 all: $(TARGET) $(APP_PAYLOAD)
@@ -97,6 +91,19 @@ profilecheck:
 
 gamecheck:
 	sh dylib/tests/gamecheck.sh dylib/feats/compat_run.sh
+
+.PHONY: activatecheck launchfixcheck bundlecheck
+activatecheck:
+	@mkdir -p $(OUT_DIR)
+	$(CC) -arch $(ARCH) -mmacosx-version-min=$(MIN_VER) -O1 -Wall -Wextra \
+	  -Wno-unused-parameter -o $(OUT_DIR)/activatecheck dylib/tests/activatecheck.c -framework AppKit -lobjc
+	$(OUT_DIR)/activatecheck
+
+launchfixcheck:
+	python3 dylib/tests/launchfixcheck.py dylib/feats/compat_run.sh
+
+bundlecheck: appinfo
+	sh dylib/tests/bundlecheck.sh $(APPINFO) dylib/feats/compat_run.sh
 
 # runcheck owns compat_run.sh, whose warnings wait for a change that can move
 # the embedded __text baseline
@@ -325,7 +332,7 @@ OVERLAY_SHIM       := $(OUT_DIR)/overlay-shim.dylib
 OVERLAY_SHIM_FLAGS := -mmacosx-version-min=$(MIN_VER) -dynamiclib -O2 -Wall -Wextra \
                       -install_name @rpath/overlay-shim.dylib \
                       -framework Metal -framework QuartzCore \
-                      -framework CoreGraphics -framework CoreFoundation -framework AppKit
+                      -framework CoreGraphics -framework CoreFoundation -framework Foundation -framework AppKit
 OVERLAY_SHIM_TESTS := overlay-shim/tests
 OVERLAY_SHIM_TEST_FLAGS := -mmacosx-version-min=$(MIN_VER) -O2 -Wall -Wextra \
                       -framework Metal -framework Foundation -framework QuartzCore -framework AppKit

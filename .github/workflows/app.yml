@@ -51,6 +51,8 @@ jobs:
           make -s spawn-env
           make -s activatecheck
           make -s overlay-shim-tests
+          make -s launchfixcheck
+          make -s bundlecheck
 
       - name: Run Swift tests without a user GPTK image
         run: |

@@ -30,10 +30,10 @@
 
 **Interfaces:** Preserve existing install/repair entry points. Add `PrefixStore.claim`/`PrefixClaim.release`, a bounded `PinnedDownload.session`, and a Steam-copy verification callback where required by the imported tests.
 
-- [ ] Port regression tests from `6506345`, `6bf5cae`, `734e4d5`, `83e62d9` (existing Swift boundaries only), `b5bf2a9`, `08467be`, `48f3ca4`, `dd41de2`, `48d7ce0`, and `f478d89`.
-- [ ] Run affected tests and record failures before porting production code; if a new interface is missing, record the compiler failure and then verify behavioral failures separately where possible.
-- [ ] Port matching implementation and `174e457`, preserving the free install path and SteamGPTK names.
-- [ ] Run the full Swift suite and commit the bounded task.
+- [x] Port regression tests from `6506345`, `6bf5cae`, `734e4d5`, `83e62d9` (existing Swift boundaries only), `b5bf2a9`, `08467be`, `48f3ca4`, `dd41de2`, `48d7ce0`, and `f478d89`.
+- [x] Run affected tests and record failures before porting production code; if a new interface is missing, record the compiler failure and then verify behavioral failures separately where possible.
+- [x] Port matching implementation, preserving the free install path and SteamGPTK names. Omitted upstream-only boundaries are documented in `docs/UPSTREAM_SYNC_2026-10-29.md`.
+- [x] Run the full Swift suite and commit the bounded task.
 
 ### Task 2: Native Steam and overlay ownership
 
@@ -41,10 +41,10 @@
 
 **Interfaces:** Keep existing compatibility hooks. Add `np_hooks_activate_install()` at early loader initialization. Overlay exported entry points remain unchanged.
 
-- [ ] Import regression tests from `3a6c27c`, `3bd0bf4`, `f5a871a`, and the fixture correction `6b57bfa`; wire focused test targets.
-- [ ] Run the tests against the previous implementation and record failures.
-- [ ] Port allocator fixes `628bd17`/`3a6c27c`, activation hook `3bd0bf4`, and overlay ownership fix `f5a871a`; adapt public environment names to SteamGPTK.
-- [ ] Run native checks, overlay tests and commit.
+- [x] Import regression tests from `3a6c27c`, `3bd0bf4`, `f5a871a`, and the fixture correction `6b57bfa`; wire focused test targets.
+- [x] Run the tests against the previous implementation and record failures.
+- [x] Port the applicable allocator fix `3a6c27c` (the static buffer does not need `628bd17`), activation hook `3bd0bf4`, and overlay ownership fix `f5a871a`; adapt public environment names to SteamGPTK.
+- [x] Run native checks, overlay tests and commit.
 
 ### Task 3: Launch correctness and overhead
 
@@ -52,9 +52,9 @@
 
 **Interfaces:** `apply_game_profile()` and `wine_game_pids` remain authoritative. Keep manual environment priority, `hl2-v1`, fixed bridge selection and cache locations unchanged.
 
-- [ ] Import/adapt behavioral tests for `6bf5cae`, `cfe0194`, `2791679`, `886105c`, `a479c84` at existing script boundaries; check the default HL2 path and manual overrides with the existing integration tests.
-- [ ] Run focused checks against the old script and record failures.
-- [ ] Port the minimal compatible implementations, including launch-alert exit from `08467be`, with no new hidraw/plugin/defaults subsystem. Synchronize the packaged launcher.
+- [x] Import/adapt behavioral tests for `6bf5cae`, `cfe0194`, `2791679`, `886105c`, `a479c84` at existing script boundaries; check the default HL2 path and manual overrides with the existing integration tests.
+- [x] Run focused checks against the old script and record failures.
+- [x] Port the minimal compatible implementations, including launch-alert exit from `08467be`, with no new hidraw/plugin/defaults subsystem. Synchronize the packaged launcher.
 - [ ] Run full Swift/native/lint checks and build a relocated application with `scripts/build-free-ui.sh`; run packaged-resource and signature verification.
 - [ ] Document upstream source commits, adapted/omitted portions, results and limitations; commit.
 - [ ] Obtain a fresh whole-branch review and address important findings with regression tests.

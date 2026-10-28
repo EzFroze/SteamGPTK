@@ -165,11 +165,48 @@ if [ "$game_profile" != none ]; then
   } >> "$log" 2>&1 || true
 fi
 
-[ -n "$SteamAppId" ] || export SteamAppId="$app_id"
-[ -n "$SteamGameId" ] || export SteamGameId="$app_id"
-if [ -n "$app_id" ] && [ "$app_id" != 0 ] && [ -d "$STEAM_COMPAT_INSTALL_PATH" ]; then
-  printf '%s\n' "$app_id" > "$STEAM_COMPAT_INSTALL_PATH/steam_appid.txt" 2>/dev/null || true
-fi
+shortcut_game_id() {
+  case "$1" in ''|*[!0-9]*) return 1 ;; esac
+  [ "${#1}" -le 20 ] || return 1
+  high=0
+  low="$1"
+  if [ "${#1}" -gt 10 ]; then
+    high="${1%??????????}"
+    low="${1#"$high"}"
+  fi
+  high="${high#"${high%%[!0]*}"}"
+  low="${low#"${low%%[!0]*}"}"
+  [ $(( (${high:-0} % 4294967296 * 1410065408 + ${low:-0}) % 4294967296 )) = 33554432 ]
+}
+
+
+without_lock_fds() {
+  (exec 8>&- 9>&-; exec "$@")
+}
+
+claim_prefix() {
+  [ -n "$STEAM_COMPAT_DATA_PATH" ] || return 0
+  lock_file="$STEAM_COMPAT_DATA_PATH/.steamgptk-prefix.lock"
+  [ ! -L "$lock_file" ] || return 1
+  [ ! -e "$lock_file" ] || [ -f "$lock_file" ] || return 1
+  exec 9>> "$lock_file"
+  /usr/bin/lockf -s -t 30 9
+}
+
+
+case "$verb" in
+  waitforexitandrun)
+    if shortcut_game_id "$SteamGameId"; then
+      unset SteamAppId
+    else
+      [ -n "$SteamAppId" ] || export SteamAppId="$app_id"
+      if [ -n "$app_id" ] && [ "$app_id" != 0 ] && [ -d "$STEAM_COMPAT_INSTALL_PATH" ]; then
+        printf '%s\n' "$app_id" > "$STEAM_COMPAT_INSTALL_PATH/steam_appid.txt" 2>/dev/null || true
+      fi
+    fi
+    [ -n "$SteamGameId" ] || export SteamGameId="$app_id"
+    ;;
+esac
 
 prefix_machine() {
   dll="$WINEPREFIX/drive_c/windows/system32/ntdll.dll"
@@ -199,7 +236,7 @@ refuse_foreign_prefix() {
   echo "=== prefix ntdll is $have and this compatibility tool wants $want, rebuild the prefix in SteamGPTK ===" >> "$log" 2>&1 || true
 
   if [ "$verb" != run ]; then
-    osascript >/dev/null 2>&1 <<APPLESCRIPT || true
+    without_lock_fds osascript >/dev/null 2>&1 <<APPLESCRIPT || true
 display alert "This game needs its prefix rebuilt" message "This game originally ran under $(tool_name "$have"), but $(tool_name "$want") is present now. The prefix needs to be rebuilt in SteamGPTK in order to run the game. You will not lose game saves by rebuilding the prefix." as critical
 APPLESCRIPT
   fi
@@ -422,8 +459,155 @@ lay_out_proton_profile() {
   fi
 }
 
+native_vc_runtime() {
+  for name in concrt140 msvcp140 msvcp140_1 msvcp140_2 msvcp140_atomic_wait msvcp140_codecvt_ids \
+    vcamp140 vccorlib140 vcomp140 vcruntime140 vcruntime140_1; do
+    dll="$WINEPREFIX/drive_c/windows/system32/$name.dll"
+    [ -f "$dll" ] || continue
+    if [ "$(dd if="$dll" bs=1 skip=64 count=16 2>/dev/null)" != "Wine builtin DLL" ]; then
+      printf '%s=n,b;' "$name"
+    fi
+  done
+}
+
+plan_logpixels() {
+  dpi_value=""
+  new_dpi=""
+  dpi_registry=/dev/null
+  [ ! -f "$WINEPREFIX/user.reg" ] || dpi_registry="$WINEPREFIX/user.reg"
+  read -r retina_was dpi <<EOF
+$(LC_ALL=C awk '
+  /^\[/ { s = 0
+    line = tolower($0)
+    if (index(line, "[software\\\\wine\\\\mac driver]") == 1) s = 1
+    else if (index(line, "[control panel\\\\desktop]") == 1) s = 2
+    next }
+  s { $0 = tolower($0) }
+  s == 1 && $0 ~ /^"retinamode"="[yt1]/ { r = 1 }
+  s == 2 && $0 ~ /^"logpixels"=dword:[0-9a-f]+$/ && length($0) <= 26 { d = substr($0, 19) }
+  END { print r + 0, d }' "$dpi_registry")
+EOF
+  [ -n "$dpi" ] || [ ! -f "$WINEPREFIX/system.reg" ] || dpi=$(LC_ALL=C awk '
+      /^\[/ { s = index(tolower($0), "[system\\\\controlset001\\\\hardware profiles\\\\current\\\\software\\\\fonts]") == 1; next }
+      s { $0 = tolower($0) }
+      s && $0 ~ /^"logpixels"=dword:[0-9a-f]+$/ && length($0) <= 26 { print substr($0, 19); exit }' "$WINEPREFIX/system.reg")
+  dpi=$((0x${dpi:-0}))
+  [ "$dpi" -gt 0 ] || dpi=96
+  if [ "$STEAMGPTK_RETINA" = "1" ]; then
+    [ "$retina_was" = 1 ] && [ "$dpi" -ge 110 ] || [ "$dpi" -gt 2147483647 ] || new_dpi=$((dpi * 2))
+  elif [ "$retina_was" = 1 ]; then
+    new_dpi=$((dpi / 2))
+    [ "$new_dpi" -ge 96 ] || new_dpi=96
+  fi
+  [ -z "$new_dpi" ] || [ "$new_dpi" -eq "$dpi" ] || dpi_value=$(printf '"LogPixels"=dword:%08x' "$new_dpi")
+}
+
+prefix_up_to_date() {
+  [ -r "$WINEPREFIX/.update-timestamp" ] || return 1
+  read -r stamp _ < "$WINEPREFIX/.update-timestamp" || return 1
+  stamp=${stamp%"$(printf '\r')"}
+  case "$stamp" in '' | *[!0-9]*) return 1 ;; esac
+  [ "$stamp" = "$(stat -f %m "$CX_ROOT/share/wine/wine.inf" 2>/dev/null)" ]
+}
+
+settings_already_applied() {
+  prefix_up_to_date || return 1
+  [ -f "$WINEPREFIX/system.reg" ] && [ -f "$WINEPREFIX/user.reg" ] || return 1
+  LC_ALL=C awk '
+    function double(s,   out, i) {
+      out = ""
+      while ((i = index(s, "\\")) > 0) { out = out substr(s, 1, i) "\\"; s = substr(s, i + 1) }
+      return out s
+    }
+    FNR == 1 {
+      file++
+      root = file == 2 ? "hkey_local_machine\\" : "hkey_current_user\\"
+      key = ""
+    }
+    { sub(/\r$/, "") }
+    /^\[/ {
+      key = ""
+      end = index($0, "]")
+      if (!end) { if (file == 1) bad = 1; next }
+      name = tolower(substr($0, 2, end - 2))
+      if (file == 1) {
+        deleted = sub(/^-/, "", name)
+        ccs = "hkey_local_machine\\system\\currentcontrolset\\"
+        if (index(name, ccs) == 1)
+          name = "hkey_local_machine\\system\\controlset001\\" substr(name, length(ccs) + 1)
+        split(name, part, "\\")
+        name = substr(name, 1, length(part[1]) + 1) double(substr(name, length(part[1]) + 2))
+        if (deleted) gone[name] = 1
+        else { key = name; wanted[name] = 1 }
+        next
+      }
+      name = root name
+      for (g in gone) if (name == g || index(name, g "\\\\") == 1) bad = 1
+      if (name in wanted) key = name
+      next
+    }
+    key == "" || !match($0, /^("([^"\\]|\\.)*"|@)=/) { next }
+    {
+      name = tolower(substr($0, 1, RLENGTH - 1))
+      value = substr($0, RLENGTH + 1)
+      if (file == 1) want[key, name] = value
+      else have[key, name] = value
+    }
+    END {
+      if (file != 3) exit 1
+      for (kv in want) {
+        if (want[kv] == "-") { if (kv in have) bad = 1 }
+        else if (!(kv in have) || have[kv] != want[kv]) bad = 1
+      }
+      exit bad
+    }
+  ' "$settings_file" "$WINEPREFIX/system.reg" "$WINEPREFIX/user.reg"
+}
+
+
+video_lines() {
+  [ "$verb" = waitforexitandrun ] || return 0
+  printf '%s\r\n' '[HKEY_CURRENT_USER\Software\Wine\Mac Driver]' "$retina_line" '"OpenGLSurfaceMode"="behind"' ''
+  [ -n "$dpi_value" ] || return 0
+  printf '%s\r\n' '[HKEY_CURRENT_USER\Control Panel\Desktop]' "$dpi_value" ''
+}
+
+import_prefix_settings() {
+  if [ "$STEAMGPTK_RETINA" = 1 ]; then retina_line='"RetinaMode"="y"'; else retina_line='"RetinaMode"=-'; fi
+  dpi_value=""
+  [ "$verb" != waitforexitandrun ] || plan_logpixels 2>/dev/null || dpi_value=""
+  settings_file=$(mktemp "$WINEPREFIX/drive_c/steamgptk-settings.XXXXXX") || return 0
+  if ! { printf '%s\r\n' 'Windows Registry Editor Version 5.00' '' \
+      '[HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\AeDebug]' '"Auto"="0"' '' \
+      '[HKEY_LOCAL_MACHINE\Software\Wow6432Node\Microsoft\Windows NT\CurrentVersion\AeDebug]' '"Auto"="0"' '' \
+      '[HKEY_CURRENT_USER\Software\Wine\WineDbg]' '"ShowCrashDialog"=dword:00000000' '' \
+      && video_lines && printf '%s\r\n' \
+      '[HKEY_LOCAL_MACHINE\Software\Classes\steam]' '"URL Protocol"=""' '' \
+      '[HKEY_LOCAL_MACHINE\Software\Classes\steam\shell\open\command]' \
+      '@="\"C:\\Program Files (x86)\\Steam\\steam.exe\" \"%1\""' ''; } > "$settings_file"; then
+    rm -f "$settings_file"
+    echo '=== could not write prefix settings ===' >> "$log" 2>&1 || true
+    return 0
+  fi
+  if settings_already_applied; then
+    import_status=0
+    echo '=== prefix settings already applied, skipped the import ===' >> "$log" 2>&1 || true
+  else
+    without_lock_fds "$WINELOADER" reg import "C:\\${settings_file##*/}" >> "$log" 2>&1 \
+      && import_status=0 || import_status=$?
+  fi
+  rm -f "$settings_file"
+  if [ "$import_status" -eq 0 ] && [ -n "$dpi_value" ]; then
+    without_lock_fds "$WINESERVER" -k >> "$log" 2>&1 || true
+    without_lock_fds "$WINESERVER" -w >> "$log" 2>&1 || true
+    echo "video: LogPixels=$new_dpi" >> "$log" 2>&1 || true
+  fi
+}
+
 if [ -n "$STEAM_COMPAT_DATA_PATH" ]; then
   export WINEPREFIX="$STEAM_COMPAT_DATA_PATH/pfx"
+  stage_step="prefix lock"
+  claim_prefix
   mkdir -p "$WINEPREFIX"
   msync_from=launch-options
   sync_marker="$STEAM_COMPAT_DATA_PATH/steamgptk-msync"
@@ -455,28 +639,16 @@ if [ -n "$STEAM_COMPAT_DATA_PATH" ]; then
   stage_step="prefix arch check"
   refuse_foreign_prefix
   echo "sync: WINEMSYNC=$WINEMSYNC from $msync_from" >> "$log" 2>&1 || true
-  "$WINESERVER" -k >> "$log" 2>&1 || true
+  without_lock_fds "$WINESERVER" -k >> "$log" 2>&1 || true
+  without_lock_fds "$WINESERVER" -w >> "$log" 2>&1 || true
   stage_step="profile layout"
   lay_out_proton_profile
-  "$WINELOADER" wineboot --init >> "$log" 2>&1 || true
-  "$WINELOADER" reg add 'HKLM\Software\Microsoft\Windows NT\CurrentVersion\AeDebug' /v Auto /t REG_SZ /d 0 /f >> "$log" 2>&1 || true
-  "$WINELOADER" reg add 'HKLM\Software\Wow6432Node\Microsoft\Windows NT\CurrentVersion\AeDebug' /v Auto /t REG_SZ /d 0 /f >> "$log" 2>&1 || true
-  "$WINELOADER" reg add 'HKCU\Software\Wine\WineDbg' /v ShowCrashDialog /t REG_DWORD /d 0 /f >> "$log" 2>&1 || true
-
-  # Retina on by default so games see real pixels (e.g. 3024x1964) instead of the scaled
-  # "looks like" size; pass STEAMGPTK_RETINA=0 after %command% to opt a game out.
+  if ! prefix_up_to_date; then
+    without_lock_fds "$WINELOADER" wineboot --init >> "$log" 2>&1 || true
+  fi
   STEAMGPTK_RETINA="${STEAMGPTK_RETINA:-1}"
   echo "video: RetinaMode=$STEAMGPTK_RETINA" >> "$log" 2>&1 || true
-  if [ "$STEAMGPTK_RETINA" = "1" ]; then
-    "$WINELOADER" reg add 'HKCU\Software\Wine\Mac Driver' /v RetinaMode /t REG_SZ /d y /f >> "$log" 2>&1 || true
-  else
-    "$WINELOADER" reg delete 'HKCU\Software\Wine\Mac Driver' /v RetinaMode /f >> "$log" 2>&1 || true
-  fi
-  "$WINELOADER" reg add 'HKCU\Software\Wine\Mac Driver' /v OpenGLSurfaceMode /t REG_SZ /d behind /f >> "$log" 2>&1 || true
-
-
-  "$WINELOADER" reg add 'HKLM\Software\Classes\steam' /v 'URL Protocol' /t REG_SZ /d '' /f >> "$log" 2>&1 || true
-  "$WINELOADER" reg add 'HKLM\Software\Classes\steam\shell\open\command' /ve /t REG_SZ /d '"C:\Program Files (x86)\Steam\steam.exe" "%1"' /f >> "$log" 2>&1 || true
+  import_prefix_settings
 fi
 
 bridge_src="$HOME/Library/Application Support/steamgptk/bridge"
@@ -593,7 +765,8 @@ if [ -d "$bridge_src" ] && [ -n "$WINEPREFIX" ]; then
   install_lsteamclient_trigger
   install_legacy_steam_dll
   export WINEDLLPATH="$prefix_steam:$WINEDLLPATH"
-  export WINEDLLOVERRIDES="steamclient=n,b;steamclient64=n,b;lsteamclient=b;d3dcompiler_43=n,b;d3dx9_43=n,b;d3dcompiler_47=n,b;nvapi64,nvngx=n,b;${WINEDLLOVERRIDES}"
+  vc_overrides=$(native_vc_runtime)
+  export WINEDLLOVERRIDES="${vc_overrides}steamclient=n,b;steamclient64=n,b;lsteamclient=b;d3dcompiler_43=n,b;d3dx9_43=n,b;d3dcompiler_47=n,b;nvapi64,nvngx=n,b;${WINEDLLOVERRIDES}"
   native_client="$STEAM_COMPAT_CLIENT_INSTALL_PATH"
   if [ -z "$native_client" ]; then
     native_client="$HOME/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS"
@@ -647,7 +820,7 @@ if [ "$foreground" = 0 ]; then
       exit 0
       ;;
   esac
-  "$WINELOADER" "$@" >> "$log" 2>&1
+  without_lock_fds "$WINELOADER" "$@" >> "$log" 2>&1
   status=$?
   echo "=== helper exited status=$status ===" >> "$log" 2>&1 || true
   exit $status
@@ -684,8 +857,10 @@ game_name_xml=$(printf '%s' "$game_name" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g
 loader_root="$HOME/Library/Application Support/steamgptk/launchers/$app_id"
 mkdir -p "$loader_root"
 loader_app="$loader_root/$bundle_name.app"
-rm -rf "$loader_root"/*.app
-loader_contents="$loader_app/Contents"
+find "$loader_root" -maxdepth 1 -name '.build.*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
+loader_work=$(mktemp -d "$loader_root/.build.XXXXXX")
+loader_stage="$loader_work/new/$bundle_name.app"
+loader_contents="$loader_stage/Contents"
 loader_macos="$loader_contents/MacOS"
 loader_res="$loader_contents/Resources"
 mkdir -p "$loader_macos" "$loader_res"
@@ -792,16 +967,20 @@ $icon_arg
 PLIST
 
 # Invokes macOS Game Mode
-for f in "$wine_unix"/*; do
-  [ -e "$f" ] || continue
-  base=${f##*/}
-  case "$base" in
-    wine|wine.app) continue ;;
-  esac
-  ln -sfn "$f" "$loader_macos/$base"
-done
-[ -d "$CX_ROOT/lib" ] && ln -sfn "$CX_ROOT/lib" "$loader_contents/lib"
+(
+  set --
+  for f in "$wine_unix"/*; do
+    [ -e "$f" ] || continue
+    base=${f##*/}
+    case "$base" in
+      wine|wine.app) continue ;;
+    esac
+    set -- "$@" "$f"
+  done
+  [ "$#" -eq 0 ] || ln -sfn "$@" "$loader_macos/"
+)
 ln "$WINELOADER" "$loader_macos/wine" 2>/dev/null || cp "$WINELOADER" "$loader_macos/wine"
+[ -d "$CX_ROOT/lib" ] && ln -sfn "$CX_ROOT/lib" "$loader_contents/lib"
 loader_dir="$(dirname "$WINELOADER")"
 if [ -f "$loader_dir/wine64-preloader" ]; then
   ln -sfn "$loader_dir/wine64-preloader" "$loader_macos/wine64-preloader" 2>/dev/null || true
@@ -810,7 +989,7 @@ elif [ -f "$loader_dir/wine-preloader" ]; then
   ln -sfn "$loader_dir/wine-preloader" "$loader_macos/wine-preloader" 2>/dev/null || true
 fi
 if [ -x "$loader_macos/wine" ]; then
-  WINELOADER="$loader_macos/wine"
+  WINELOADER="$loader_app/Contents/MacOS/wine"
   echo "loader staged in bundle for game mode" >> "$log" 2>&1 || true
 else
   echo "loader staging failed, game mode unavailable" >> "$log" 2>&1 || true
@@ -837,10 +1016,86 @@ elif [ -n "\$STEAM_DYLD_INSERT_LIBRARIES" ]; then
   export DYLD_INSERT_LIBRARIES="\$STEAM_DYLD_INSERT_LIBRARIES"
 fi
 [ -n "\$STEAMGPTK_GAME_CWD" ] && cd "\$STEAMGPTK_GAME_CWD"
-"$WINELOADER" "\$@"
-exit \$?
+exec "$WINELOADER" "\$@"
 LAUNCHER
 chmod +x "$loader_macos/launcher"
+
+np_support="$HOME/Library/Application Support/steamgptk"
+bundle_listing() {
+  (cd "$1" || exit 1
+    find . | LC_ALL=C sort | while IFS= read -r p; do
+    if [ -L "$p" ]; then
+      printf 'l %s %s\n' "$p" "$(readlink "$p")"
+    elif [ -d "$p" ]; then
+      printf 'd %s\n' "$p"
+    else
+      printf 'f %s %s %s\n' "$p" "$(stat -f %Lp "$p")" "$(cksum < "$p")"
+    fi
+  done)
+}
+bundle_matches() {
+  if [ -x "$np_support/appinfo" ]; then
+    if "$np_support/appinfo" --same-bundle "$1" "$2" 2>/dev/null; then
+      return 0
+    else
+      case "$?" in 1) return 1 ;; esac
+    fi
+  fi
+  left_listing=$(bundle_listing "$1") || return 1
+  right_listing=$(bundle_listing "$2") || return 1
+  [ "$left_listing" = "$right_listing" ]
+}
+install_bundle() (
+  exec 7>> "$loader_root/.lock"
+  /usr/bin/lockf -s -t 30 7 || exit 1
+  same=""
+  for b in "$loader_root"/*.app; do
+    if [ "$b" = "$loader_app" ] && [ -d "$b" ] && [ ! -L "$b" ] &&
+       bundle_matches "$b" "$loader_stage"; then
+      same=1
+    fi
+  done
+  if [ -n "$same" ]; then
+    for b in "$loader_root"/*.app "$loader_root"/.[!.]*.app; do
+      if [ "$b" != "$loader_app" ]; then rm -rf "$b" || true; fi
+    done
+    echo "launcher bundle unchanged" >> "$log" 2>&1 || true
+  else
+    stage_identity=$(stat -f '%d:%i' "$loader_stage") || exit 1
+    loader_backup=$(mktemp -d "$loader_root/.backup.XXXXXX") || exit 1
+    finish_bundle() {
+      result=$?
+      trap - EXIT
+      trap '' HUP INT TERM
+      installed_identity=$(stat -f '%d:%i' "$loader_app" 2>/dev/null) || installed_identity=""
+      if [ "$installed_identity" != "$stage_identity" ]; then
+        for saved in "$loader_backup"/* "$loader_backup"/.[!.]*; do
+          [ -e "$saved" ] || [ -L "$saved" ] || continue
+          mv "$saved" "$loader_root/${saved##*/}" || result=1
+        done
+        rmdir "$loader_backup" 2>/dev/null || result=1
+      else
+        rm -rf "$loader_backup" || true
+      fi
+      rm -rf "$loader_work" || true
+      exit "$result"
+    }
+    trap 'finish_bundle' EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    for b in "$loader_root"/*.app "$loader_root"/.[!.]*.app "$loader_app"; do
+      if [ -e "$b" ] || [ -L "$b" ]; then
+        mv "$b" "$loader_backup/${b##*/}" || exit 1
+      fi
+    done
+    mv "$loader_stage" "$loader_app" || exit 1
+    echo "launcher bundle updated" >> "$log" 2>&1 || true
+    finish_bundle
+  fi
+  rm -rf "$loader_work" || true
+)
+install_bundle
 
 wine_helpers='winedevice\.exe|services\.exe|plugplay\.exe|svchost\.exe'
 wine_helpers="$wine_helpers|rpcss\.exe|explorer\.exe|steam\.exe"
@@ -989,8 +1244,13 @@ set -- \
   --env STEAMGPTK_GAME_CWD="$game_cwd" "$@"
 lsregister="/System/Library/Frameworks/CoreServices.framework/Versions/A"
 lsregister="$lsregister/Frameworks/LaunchServices.framework/Support/lsregister"
-[ -x "$lsregister" ] && "$lsregister" -f "$loader_app" >> "$log" 2>&1 || true
-open -n -W -a "$loader_app" "$@" >> "$log" 2>&1 &
+registered="$loader_root/.launchservices-registered"
+if [ ! -f "$registered" ] || [ "$loader_app/Contents/Info.plist" -nt "$registered" ]; then
+  if [ -x "$lsregister" ] && "$lsregister" -f "$loader_app" >> "$log" 2>&1; then
+    touch "$registered" 2>/dev/null || true
+  fi
+fi
+(exec 8>&- 9>&-; exec open -n -W -a "$loader_app" "$@") >> "$log" 2>&1 &
 open_pid=$!
 status=0
 seen=0

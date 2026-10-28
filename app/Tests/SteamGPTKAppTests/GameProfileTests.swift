@@ -39,7 +39,7 @@ struct GameProfileTests {
     // Stop before wineboot / UI / game execution: no live Steam or Wine is used.
     private func launch(_ f: (work: URL, root: URL, bridge: URL, tool: URL), appID: String = "220",
                         options: [String] = [], stageBridge: Bool = false,
-                        forwardedOnly: Bool = false) throws -> [String: String] {
+                        forwardedOnly: Bool = false, steamGameID: String = "", verb: String = "waitforexitandrun") throws -> [String: String] {
         let script = try String(contentsOf: f.tool.appending(path: "run"), encoding: .utf8)
         let initialization = script.components(separatedBy: "\nprefix_machine() {")
         try #require(initialization.count == 2, "Initialization boundary must exist before executing a launcher fixture")
@@ -49,7 +49,9 @@ struct GameProfileTests {
         let bridgeStage: String
         if stageBridge {
             let section = try #require(script.components(separatedBy: "\nbridge_src=").dropFirst().first)
-            bridgeStage = ("\nbridge_src=" + section.components(separatedBy: "\n  native_client=")[0] + "\nfi\n")
+            let vc = try #require(script.components(separatedBy: "\nnative_vc_runtime() {\n").dropFirst().first)
+            let vcHelper = "\nnative_vc_runtime() {\n" + vc.components(separatedBy: "\n}\n")[0] + "\n}\n"
+            bridgeStage = (vcHelper + "\nbridge_src=" + section.components(separatedBy: "\n  native_client=")[0] + "\nfi\n")
                 .replacingOccurrences(of: "bridge_src=\"$HOME/Library/Application Support/steamgptk/bridge\"",
                                       with: "bridge_src=\"$TEST_BRIDGE_ROOT\"")
         } else { bridgeStage = "" }
@@ -64,11 +66,12 @@ struct GameProfileTests {
                 + "\nprintf '%s\\n' \"$@\"\n"
         } else { output = "\nenv\n" }
         let result = try Shell.run("/bin/sh", ["-c", startup + bridgeStage + output,
-            "sh", "waitforexitandrun", "game.exe"] + options, environment: [
+            "sh", verb, "game.exe"] + options, environment: [
                 "PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "TEST_RUNNER_ROOT": f.root.path,
                 "TEST_BRIDGE_ROOT": f.bridge.path,
                 "STEAM_COMPAT_APP_ID": appID, "STEAM_COMPAT_DATA_PATH": prefix.deletingLastPathComponent().path,
                 "WINEPREFIX": prefix.path,
+                "SteamGameId": steamGameID,
             ])
         #expect(result.status == 0, "\(result.stdout)\n\(result.stderr)")
         return Dictionary(result.stdout.split(separator: "\n").compactMap { line -> (String, String)? in
@@ -92,6 +95,20 @@ struct GameProfileTests {
         #expect(env["DXVK_HUD"] == nil)
         #expect(env["MTL_HUD_ENABLED"] == nil)
         #expect(env["DXVK_CONFIG_FILE"] == nil, "The profile must not depend on a temporary config file")
+    }
+
+    @Test("Non-Steam shortcuts and installation helpers are not assigned a store AppID")
+    func shortcutAndHelperIDs() throws {
+        let f = try fixture()
+        defer { try? FileManager.default.removeItem(at: f.work) }
+        try configure(f)
+        let shortcut = try launch(f, steamGameID: "9223372036888330240")
+        #expect(shortcut["SteamAppId"] == nil)
+        #expect(shortcut["SteamGameId"] == "9223372036888330240")
+        let helper = try launch(f, verb: "run")
+        #expect(helper["SteamAppId"] == nil)
+        let game = try launch(f)
+        #expect(game["SteamAppId"] == "220")
     }
 
     @Test("Explicit launch options override the game profile and runner defaults")
