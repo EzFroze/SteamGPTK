@@ -1,6 +1,6 @@
 # Selected NotProton fixes, 2026-10-29
 
-Branch: `codex/upstream-launch-steam-overlay`, based on SteamGPTK 0.2.2 (`47b3d2d`). Upstream inspected through [`a479c84`](https://github.com/NotProtonNot/NotProton/commit/a479c84923e853ddf8bf3a965fb4287ebfdcfd28). This is a development branch, not a new release.
+Ported on `codex/upstream-launch-steam-overlay`, based on SteamGPTK 0.2.2 (`47b3d2d`). Upstream inspected through [`a479c84`](https://github.com/NotProtonNot/NotProton/commit/a479c84923e853ddf8bf3a965fb4287ebfdcfd28). These changes form SteamGPTK 0.2.3.
 
 ## Ported
 
@@ -41,4 +41,4 @@ A fresh independent review found two important launch-lock edge cases. Both were
 
 One minor finding is deferred: when `appinfo` is missing, outdated or reports a read error, the shell bundle-comparison fallback can lose a nested `find` permission error and keep an unreadable Resources directory. This affects the unreadable-directory edge case; normal bundle comparison, replacement and rollback are covered by passing tests. This is not treated as an FPS fix.
 
-The development app builds successfully. Deep strict code-signature validation and `--check-resources` pass after relocating the app to another temporary directory. The application remains version 0.2.2; no release, installation, push or main merge is part of this branch.
+The development app built successfully. Deep strict code-signature validation and `--check-resources` passed after relocating the app to another temporary directory. Initial testing used a development build labeled 0.2.2; the release is versioned 0.2.3. See [release notes](releases/0.2.3.md) for the update procedure.

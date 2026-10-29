@@ -1,3 +1,14 @@
+# SteamGPTK 0.2.3 — 2026-10-29
+
+- Selectively port launch, Steam integration and Metal overlay fixes from NotProton through `a479c84`, preserving the free Wine/GPTK runtime and automatic HL2 profile.
+- Batch prefix registry settings and skip unchanged settings; reuse unchanged launcher bundles and avoid redundant LaunchServices registration.
+- Correct Retina DPI transitions and prefer installed Microsoft VC++ runtime DLLs without overriding explicit user choices.
+- Correct Steam IDs for non-Steam shortcuts and install helpers, prevent unwanted Steam focus activation, and release temporary Steam paths with the right allocator.
+- Fix Metal overlay pipeline and encoder ownership across completion, discard and repeated rebuilds.
+- Preserve arbitrary bytes and CRLF in steam.cfg, bound downloads, distinguish disk errors, verify Steam copies across volumes and protect prefix operations with shared locks.
+- Handle first launch without a compatdata directory and release the parent's lock before a terminal rebuild prompt.
+- Keep the fixed 32-bit bridge, Steam Cloud path layout, saves and shader cache locations unchanged.
+
 # SteamGPTK 0.2.2 — 2026-10-16
 
 - Add the automatic Half-Life 2 profile (AppID 220): D9VK / KosmicKrisp, D3D9 VSync off, AVX advertisement off and the verified 32-bit Steam bridge.

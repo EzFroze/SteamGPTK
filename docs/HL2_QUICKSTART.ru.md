@@ -2,7 +2,7 @@
 
 Нужен Mac с Apple Silicon, macOS 26 или новее для приложения, обычный Steam и купленная Half-Life 2. Проверенная конфигурация: M1 Pro, macOS 27.0.1, GPTK 4.0 beta 3. На других конфигурациях производительность может отличаться.
 
-1. Скачай **SteamGPTK.zip** из [релиза 0.2.2](https://github.com/EzFroze/SteamGPTK/releases/tag/steamgptk-v0.2.2), распакуй и перенеси **SteamGPTK.app** в **Программы**. Приложение подписано локально и не нотарифицировано: если macOS блокирует открытие, разреши именно это приложение в **Системные настройки → Конфиденциальность и безопасность**.
+1. Скачай **SteamGPTK.zip** из [последнего релиза](https://github.com/EzFroze/SteamGPTK/releases/latest), распакуй и перенеси **SteamGPTK.app** в **Программы**. Приложение подписано локально и не нотарифицировано: если macOS блокирует открытие, разреши именно это приложение в **Системные настройки → Конфиденциальность и безопасность**.
 2. Установи Rosetta 2, если её ещё нет: в Терминале выполни `softwareupdate --install-rosetta` и прочитай запрос Apple.
 3. Скачай свой DMG **Game Porting Toolkit 4 / Evaluation environment for Windows games** с [Apple Developer Downloads](https://developer.apple.com/download/all/?q=game%20porting%20toolkit). Нужен Apple ID; файлы GPTK в SteamGPTK не входят.
 4. Закрой Steam и Windows-игры. Открой SteamGPTK, нажми **Choose DMG…**, выбери скачанный образ и дождись импорта. Затем нажми **Install / Repair** и дождись готовности компонентов. Повторно выбирать уже импортированный GPTK не требуется.
