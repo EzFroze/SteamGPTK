@@ -42,17 +42,23 @@ jobs:
 
       - name: Run C and profile checks
         run: |
-          make -s sigcheck
-          make -s webpatch-fixtures
-          make -s panel-behavior
-          make -s compatcheck
-          make -s compatsvc-check
-          make -s profilecheck
-          make -s spawn-env
-          make -s activatecheck
-          make -s overlay-shim-tests
-          make -s launchfixcheck
-          make -s bundlecheck
+          for check in sigcheck webpatch-fixtures panel-behavior compatcheck compatsvc-check \
+            profilecheck spawn-env activatecheck overlay-shim-tests launchfixcheck bundlecheck; do
+            log="$RUNNER_TEMP/steamgptk-$check.log"
+            printf 'Running %s\n' "$check"
+            if make -s "$check" 2>&1 | tee "$log"; then
+              continue
+            fi
+            python3 - "$check" "$log" <<'PY'
+          from pathlib import Path
+          import sys
+          lines = Path(sys.argv[2]).read_text(errors='replace').splitlines()
+          message = '\n'.join(lines[-80:])[:14000]
+          message = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print('::error title=Native regression ' + sys.argv[1] + '::' + message)
+          PY
+            exit 1
+          done
 
       - name: Run Swift tests without a user GPTK image
         run: |
